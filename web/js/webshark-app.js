@@ -1,4 +1,5 @@
 (function (modules, cache, entry) {
+	console.log('webshark-app.js function called entry=' + entry);
 	window.webshark = req(entry);
 	function req(name) {
 		if (cache[name]) return cache[name].exports;
@@ -57,6 +58,7 @@
 		}
 
 		Webshark.prototype.load = function (filename, cb) {
+			console.log("app.js load filename=" + filename);
 			var req_status =
 			{
 				req: 'status',
@@ -337,6 +339,7 @@
 		}
 
 		function webshark_create_url(params) {
+			// console.log('webshark_create_url params=' + JSON.stringify(params));
 			var base_url = window.location.href.split("?")[0];
 
 			var str_params = webshark_params_to_uri(params);
@@ -397,49 +400,31 @@
 			return null;
 		}
 
-		let useHttp = false; // else use unix socket to connect to sharkd
-		let domainSocketClient = undefined;
-		var net = require('net');
-
 		function webshark_json_get(req_data, cb) {
-			if (useHttp) {
-				var http = new XMLHttpRequest();
+			//var http = new XMLHttpRequest();
 
-				var url = webshark_create_api_url(req_data);
+			var url = webshark_create_api_url(req_data);
 
-				var req = JSON.stringify(req_data);
+			var req = JSON.stringify(req_data);
 
-				debug(3, " webshark_json_get(" + req + ") sending request");
+			debug(3, " webshark_json_get(" + req + ") sending request");
 
-				http.open("GET", url, true);
-				http.onreadystatechange =
-					function () {
-						if (http.readyState == 4 && http.status == 200) {
-							debug(3, " webshark_json_get(" + req + ") got 200 len = " + http.responseText.length);
+			//vscode.postMessage({ message: "sharkd req", request: req });
+			sharkdRequest(req, cb);
 
-							var js = JSON.parse(http.responseText);
-							cb(js);
-						}
-					};
+			//http.open("GET", url, true);
+			/*http.onreadystatechange =
+			function () {
+				if (http.readyState == 4 && http.status == 200) {
+					debug(3, " webshark_json_get(" + req + ") got 200 len = " + http.responseText.length);
 
-				http.send(null);
-			} else {
-				if (!client) { // todo or disconnected...
-					domainSocketClient = net.createConnection("/tmp/sharkd.sock");
-					domainSocketClient.on("connect", function () {
-						console.log("connected to shardk.sock!");
-					});
-				}
-				var req = JSON.stringify(req_data);
-				debug(3, " webshark_json_get socket (" + req + ") writing data");
-				domainSocketClient.on("data", function (data) {
-					debug(3, " webshark_json_get socket(" + req + ") got data len = " + data.length);
-					var js = JSON.parse(data);
+					var js = JSON.parse(http.responseText);
 					cb(js);
-				});
-				domainSocketClient.write(req);
+				}
+			};*/
 
-			}
+			//http.send(null);
+
 		}
 
 		function webshark_frame_comment_on_over(ev) {
@@ -951,6 +936,7 @@
 		var m_webshark_clusterize_module = require("./webshark-clusterize.js");
 
 		function webshark_create_file_details(file) {
+			console.log('webshark_create_file_details file=' + JSON.stringify(file));
 			var div = document.createElement('div');
 			var p;
 
@@ -1114,6 +1100,7 @@
 		};
 
 		WSCaptureFilesTable.prototype._onRowClickHTML = function (click_tr, file) {
+			console.log('WSCaptureFilesTable.prototype._onRowClickHTML file=' + JSON.stringify(file) + " " + JSON.stringify(click_tr));
 			if (click_tr == this.selectedFile) {
 				/* TODO: after double(triple?) clicking auto load file? */
 				return;
@@ -1123,7 +1110,7 @@
 				{
 					file: file['_path']
 				});
-
+			console.log('WSCaptureFilesTable.prototype._onRowClickHTML fileDetails=' + JSON.stringify(this.fileDetails));
 			if (this.fileDetails != null) {
 				var div = webshark_create_file_details(file);
 				this.fileDetails.innerHTML = "";
@@ -1243,6 +1230,7 @@
 
 		WSCaptureFilesTable.prototype.loadFiles = function (dir) {
 			var that = this;
+			console.log('WSCaptureFilesTables loadFiles dir=' + dir);
 
 			var files_req =
 			{
@@ -1410,9 +1398,13 @@
 
 			if (frame['bg'])
 				tr.style['background-color'] = '#' + frame['bg'];
+			else
+				tr.style['background-color'] = "var(--vscode-textCodeBlock-background)";// todo
 
 			if (frame['fg'])
 				tr.style['color'] = '#' + frame['fg'];
+			else
+				tr.style['color'] = 'var(--vscode-foreground)'; // todo understand epan color_filter
 
 			if (fnum == g_webshark.getCurrentFrameNumber())
 				tr.classList.add('selected');
@@ -1501,6 +1493,8 @@
 
 		var m_PROTO_TREE_PADDING_PER_LEVEL = 20;
 
+		var tempStorage = new Map();
+
 		function webshark_tree_sync(subtree) {
 			if (subtree['expanded'] == false) {
 				subtree['tree'].style.display = 'none';
@@ -1515,6 +1509,7 @@
 		}
 
 		function webshark_tree_on_click(clicked_tree_node) {
+			console.log('webshark_tree_on_click');
 			var tree_node;
 
 			tree_node = window.webshark.dom_find_node_attr(clicked_tree_node, 'data_ws_subtree');
@@ -1524,8 +1519,10 @@
 				subtree['expanded'] = !subtree['expanded'];
 				webshark_tree_sync(subtree);
 
-				if (subtree['ett'])
-					sessionStorage.setItem("ett-" + subtree['ett'], subtree['expanded'] ? '1' : '0');
+				if (subtree['ett']) {
+					// todo sessionStorage.setItem("ett-" + subtree['ett'], subtree['expanded'] ? '1' : '0');
+					tempStorage.set("ett-" + subtree['ett'], subtree['expanded'] ? '1' : '0');
+				}
 			}
 		}
 
@@ -1553,6 +1550,7 @@
 		};
 
 		ProtocolTree.prototype.create_subtree = function (tree, proto_tree, level) {
+			console.log('ProtocolTree.prototype.create_subtree');
 			var ul = document.createElement("ul");
 
 			for (var i = 0; i < tree.length; i++) {
@@ -1647,7 +1645,7 @@
 					li.insertBefore(expander, li.firstChild);
 
 					var ett_expanded = false;
-					if (finfo['e'] && sessionStorage.getItem("ett-" + finfo['e']) == '1')
+					if (finfo['e'] && tempStorage.get("ett-" + finfo['e']) == '1') // todo sessionStorage.getItem("ett-" + finfo['e']) == '1')
 						ett_expanded = true;
 					if (this.field_filter)
 						ett_expanded = true;
