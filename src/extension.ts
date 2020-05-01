@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { WebsharkView, SharkdProcess, WebsharkViewSerializer } from './websharkView';
+import { WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData } from './websharkView';
 import { statSync } from 'fs';
 
 const extensionId = 'mbehr1.vsc-webshark';
@@ -33,6 +33,9 @@ export function activate(context: vscode.ExtensionContext) {
 		reporter?.sendTelemetryEvent('activate');
 	}
 
+	const _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData> = new vscode.EventEmitter<SelectedTimeData>();
+	// const onDidChangeSelectedTime: vscode.Event<SelectedTimeData> = this._onDidChangeSelectedTime.event;
+
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
 		let _sharkdPath = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath"));
@@ -52,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
 							const sharkd = new SharkdProcess(_sharkdPath);
 							sharkd.ready().then((ready) => {
 								if (ready) {
-									context.subscriptions.push(new WebsharkView(undefined, context, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+									context.subscriptions.push(new WebsharkView(undefined, context, _onDidChangeSelectedTime, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
 									if (reporter) { reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
 								} else {
 									vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
@@ -67,9 +70,14 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vsc-webshark',
-		new WebsharkViewSerializer(reporter, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
+		new WebsharkViewSerializer(reporter, _onDidChangeSelectedTime, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
 			context, (r) => { console.log(` openSerialized dispose called`); })));
 
+	let api = {
+		onDidChangeSelectedTime(listener: any) { return _onDidChangeSelectedTime.event(listener); }
+	};
+
+	return api;
 }
 
 // this method is called when your extension is deactivated

@@ -12,7 +12,12 @@
 
 	<script>
 		const vscode = acquireVsCodeApi(); // acquireVsCodeApi can only be invoked once
-		vscode.setState({ uri: '{{uri}}' }); // todo or check getState and remain some?
+		let state = vscode.getState();
+		if (state === undefined) state = {};
+		state.uri = '{{uri}}';
+		state.file = '{{fileName}}';
+		// state.hide_menu = true;
+		vscode.setState(state);
 	</script>
 
 	<script type="text/javascript"> const localRoot = "{{localRoot}}"; console.log('localRoot=' + localRoot);</script>
@@ -52,14 +57,16 @@
 		var g_ws_rtd = [];
 		var g_ws_convs = [];
 
+		var g_ws_absTimeColIdx = -1;
+
 		var g_ws_pref = {};
 
 		var g_ws_default_pref =
 		{
 			columns_width:
-			{
+			{ // see https://github.com/wireshark/wireshark/blob/20800366ddbbb2945491120afe7265796c26bf11/epan/column.c
 				'%m': 1.7 * 59,
-				'%t': 1.7 * 94,
+				'%t': 1.7 * 70, // %At for abs time 94,
 				'%s': 1.7 * 154,
 				'%d': 1.7 * 154,
 				'%p': 1.7 * 56,
@@ -79,7 +86,7 @@
 					//				{ "tcp.stream": "tcp.stream:0" },
 				],
 
-			layout_optimize_height: true
+			layout_optimize_height: true // show protocol details and frame next to each other
 		};
 
 		function setup_user_toolbar(user) {
@@ -175,7 +182,7 @@
 		}
 
 		function run() {
-			var opt = { 'file': '{{fileName}}' }; //  window.webshark.webshark_get_params_url();
+			var opt = vscode.getState();
 			console.log('run() ... opt=' + JSON.stringify(opt));
 
 
@@ -299,7 +306,6 @@
 					}
 
 					/* TODO: link to download ssl-sessions  */
-
 					if (opt['hide_menu'] == undefined) {
 						create_tap_menu('report_menu', g_ws_taps);
 						create_tap_menu('report_menu_conv', g_ws_convs);
@@ -526,12 +532,22 @@
 								if (ws_d_columns[col_map].format == col_format) {
 									col_format_idx = col_map;
 								}
+
 							}
 
 							if (col_format_idx != -1)
 								columns_pref.push(col_format_idx);
 							else
 								columns_pref.push(col_format);
+						}
+
+						// column idx for %Yut { COL_UTC_YMD_TIME, "UTC date, as YYYY-MM-DD, and time" },
+						var ws_d_columns = data['columns'];
+						for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
+							if (ws_d_columns[col_map].format === '%Yut') {
+								g_ws_absTimeColIdx = col_map;
+								break;
+							}
 						}
 
 						g_webshark_packet_list.setColumns(columns_title, columns_width);

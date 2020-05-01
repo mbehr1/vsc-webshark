@@ -52,7 +52,6 @@
 			this.status = null;
 			this.cols = null;
 			this.filter = null;
-
 			this.fetch_columns_limit = 120;
 
 			this.ref_frames = [];
@@ -152,6 +151,12 @@
 
 		Webshark.prototype.setFilter = function (new_filter) {
 			this.filter = new_filter;
+
+			// store this
+			const state = vscode.getState();
+			state.filter = this.filter;
+			vscode.setState(state);
+
 			this.cached_columns = [];
 
 			this.update();
@@ -262,8 +267,7 @@
 			webshark_json_get(
 				{
 					req: 'frame',
-					capture: g_webshark_file,
-					frame: framenum
+					frame: framenum,
 				},
 				func);
 		};
@@ -272,7 +276,6 @@
 			var set_req =
 			{
 				req: 'setcomment',
-				capture: g_webshark_file,
 				frame: framenum
 			};
 
@@ -318,6 +321,26 @@
 					popup(url);
 
 				ev.preventDefault();
+			}
+		}
+
+		function dblClickTr(ev) {
+			let node = dom_find_node_attr(ev.target, 'data_ws_frame');
+			if (node) {
+				console.log('dblclick on fnum #' + node.data_ws_frame + ' and get column ' + g_ws_absTimeColIdx);
+				webshark_json_get(
+					{
+						req: 'frames',
+						skip: -1 + node.data_ws_frame,
+						limit: 1,
+						column0: g_ws_absTimeColIdx
+					},
+					(data) => {
+						console.log('got data=' + JSON.stringify(data));
+						const time = data[0]['c'][0];
+						console.log('sending time update=' + time);
+						vscode.postMessage({ message: "time update", time: time, frame: data[0]['num'] });
+					});
 			}
 		}
 
@@ -546,7 +569,6 @@
 				req: 'frame',
 				bytes: 'yes',
 				proto: 'yes',
-				capture: g_webshark_file,
 				frame: framenum
 			};
 
@@ -695,6 +717,7 @@
 		exports.webshark_frame_goto = webshark_frame_goto;
 		exports.webshark_load_frame = webshark_load_frame;
 		exports.popup_on_click_a = popup_on_click_a;
+		exports.dblClickTr = dblClickTr;
 
 		exports.dom_create_label = dom_create_label;
 		exports.dom_set_child = dom_set_child;
@@ -1355,19 +1378,23 @@
 				if (j == 0) {
 					/* XXX, check if first column is equal to frame number, if so assume it's frame number column, and create link */
 					if (cols[0] == fnum) {
-						var a = document.createElement('a');
+						if (false) { // todo popups don't work yet. see later whether we need the frame popup info
+							var a = document.createElement('a');
 
-						a.appendChild(document.createTextNode(cols[j]));
+							a.appendChild(document.createTextNode(cols[j]));
 
-						a.setAttribute("target", "_blank");
-						a.setAttribute("href", window.webshark.webshark_create_url(
-							{
-								file: g_webshark_file,
-								frame: fnum
-							}));
-						a.addEventListener("click", window.webshark.popup_on_click_a);
+							a.setAttribute("target", "_blank");
+							a.setAttribute("href", window.webshark.webshark_create_url(
+								{
+									file: g_webshark_file,
+									frame: fnum
+								}));
+							a.addEventListener("click", window.webshark.popup_on_click_a);
 
-						td.appendChild(a);
+							td.appendChild(a);
+						} else {
+							td.appendChild(document.createTextNode(cols[j]));
+						}
 					}
 
 					if (frame['ct']) {
@@ -1413,6 +1440,8 @@
 			tr.id = 'packet-list-frame-' + fnum;
 			tr.data_ws_frame = fnum;
 			tr.addEventListener("click", window.webshark.webshark_load_frame.bind(null, fnum, false));
+			tr.addEventListener('dblclick', window.webshark.dblClickTr);
+
 
 			return tr;
 		}

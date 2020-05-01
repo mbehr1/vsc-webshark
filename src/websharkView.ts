@@ -76,7 +76,7 @@ export class SharkdProcess implements vscode.Disposable {
 }
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
-    constructor(private reporter: TelemetryReporter, private sharkdPath: string, private context: vscode.ExtensionContext, private callOnDispose: (r: WebsharkView) => any) {
+    constructor(private reporter: TelemetryReporter, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private callOnDispose: (r: WebsharkView) => any) {
 
     }
     async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
@@ -89,7 +89,7 @@ export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
                 const sharkd = new SharkdProcess(this.sharkdPath);
                 sharkd.ready().then((ready) => {
                     if (ready) {
-                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this._onDidChangeSelectedTime, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
                         if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
                     } else {
                         vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
@@ -109,6 +109,19 @@ interface ResponseData {
     id: number;
 }
 
+export interface TimeSyncData {
+    time: Date,
+    id: string,
+    value: string,
+    prio: number
+};
+
+export interface SelectedTimeData {
+    time: Date;
+    uri: vscode.Uri;
+    timeSyncs?: Array<TimeSyncData>; // these are not specific to a selected line. Time will be 0 then.
+};
+
 export class WebsharkView implements vscode.Disposable {
 
     panel: vscode.WebviewPanel | undefined;
@@ -119,7 +132,7 @@ export class WebsharkView implements vscode.Disposable {
     private _pendingResponses: ResponseData[] = [];
     private _partialResponse: Buffer | null = null;
 
-    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
+    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
 
         this._pendingResponses.push({ startTime: Date.now(), id: -1 });
         this._sharkd.stdin?.write(`{"req":"load","file":"${uri.fsPath}"}\n`);
@@ -144,7 +157,7 @@ export class WebsharkView implements vscode.Disposable {
                 if (this._partialResponse) {
                     const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
                     if (crPos === 0) {
-                        console.log(`crPos = 0! partialResponse.length=${this._partialResponse.length}`);
+                        console.log(`WebsharkView crPos = 0! partialResponse.length=${this._partialResponse.length}`);
                         if (this._partialResponse.length > 1) {
                             // remove the leading \n
                             this._partialResponse = this._partialResponse?.slice(crPos + 2);
@@ -157,7 +170,7 @@ export class WebsharkView implements vscode.Disposable {
                             let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
                             jsonObjs.push(jsonObj);
                             if (crPos > 0 && crPos < this._partialResponse.length - 2) {
-                                console.log(`crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
+                                console.log(`WebsharkView crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
                                 this._partialResponse = this._partialResponse?.slice(crPos + 2);
                                 gotObj = true;
                             } else {
@@ -181,7 +194,7 @@ export class WebsharkView implements vscode.Disposable {
                     const jsonObj = jsonObjs.shift();
                     if (reqId && reqId.id >= 0) {
                         this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
-                        console.log(`sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
+                        console.log(`WebsharkView sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
                     } else {
                         console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
                     }
@@ -194,7 +207,7 @@ export class WebsharkView implements vscode.Disposable {
                 }
                 dataTimeout = setTimeout(() => {
                     const req = this._pendingResponses.shift();
-                    console.warn(`throwing away partialResponse len=${this._partialResponse?.length} for reqId=${req?.id} after timeout`);
+                    console.warn(`WebsharkView throwing away partialResponse len=${this._partialResponse?.length} for reqId=${req?.id} after timeout`);
                     if (req && req.id >= 0) {
                         this.postMsgOnceAlive({ command: "sharkd res", res: {}, id: req.id });
                     }
@@ -230,7 +243,6 @@ export class WebsharkView implements vscode.Disposable {
         });
 
         this.panel.webview.onDidReceiveMessage((e) => {
-            console.log(`webshark.onDidReceiveMessage e=${e.message}`, e);
             this._gotAliveFromPanel = true;
             // any messages to post?
             if (this._msgsToPost.length) {
@@ -267,6 +279,19 @@ export class WebsharkView implements vscode.Disposable {
                     } catch (err) {
                         console.warn(`WebsharkView.onDidReceiveMessage sharkd req got err=${err}`, e);
                     }
+                    break;
+                case 'time update':
+                    try {
+                        // post time update...
+                        const time: Date = new Date(e.time);
+                        console.log(`WebsharkView posting time update ${time.toLocaleTimeString()}.${String(time.valueOf() % 1000).padStart(3, "0")}`);
+                        this._onDidChangeSelectedTime.fire({ time: time, uri: this.uri });
+                    } catch (err) {
+                        console.warn(`WebsharkView.onDidReceiveMessage 'time update' got err=${err}`, e);
+                    }
+                    break;
+                default:
+                    console.log(`webshark.onDidReceiveMessage e=${e.message}`, e);
                     break;
             }
         });
