@@ -1,3 +1,5 @@
+/* eslint curly: 0 */
+/* eslint eqeqeq: 0 */
 (function (modules, cache, entry) {
 	console.log('webshark-app.js function called entry=' + entry);
 	window.webshark = req(entry);
@@ -901,13 +903,13 @@
 					else
 						el.className = 'ws_gui_text_invalid';
 				});
-		}
+		};
 
 
 		WSDisplayFilter.prototype.setFilter = function (filter) {
 			this.elem.value = filter;
 			this.checkfilter();
-		}
+		};
 
 		exports.WSDisplayFilter = WSDisplayFilter;
 
@@ -985,7 +987,7 @@
 				/* Protocols */
 				var protos = file['analysis']['protocols'];
 				if (protos && protos.length > 0) {
-					var ul = document.createElement('ul')
+					var ul = document.createElement('ul');
 					ul.className = 'proto';
 
 					div.appendChild(document.createElement('p').appendChild(document.createTextNode('Protocols:')));
@@ -1355,7 +1357,7 @@
 					if (cols[0] == fnum) {
 						var a = document.createElement('a');
 
-						a.appendChild(document.createTextNode(cols[j]))
+						a.appendChild(document.createTextNode(cols[j]));
 
 						a.setAttribute("target", "_blank");
 						a.setAttribute("href", window.webshark.webshark_create_url(
@@ -4277,7 +4279,7 @@
 			else if (typeof define == 'function' && typeof define.amd == 'object') define(definition);
 			else this[name] = definition();
 		}('Clusterize', function () {
-			"use strict"
+			"use strict";
 
 			var is_mac = navigator.platform.toLowerCase().indexOf('mac') + 1;
 			var Clusterize = function (data) {
@@ -4296,7 +4298,7 @@
 					content_tag: null,
 					callbacks: {},
 					scroll_top: 0
-				}
+				};
 
 				// public parameters
 				self.options = {};
@@ -4354,19 +4356,19 @@
 					resizeEv = function () {
 						clearTimeout(resize_debounce);
 						resize_debounce = setTimeout(self.refresh, 100);
-					}
+					};
 				on('scroll', self.scroll_elem, scrollEv);
 				on('resize', window, resizeEv);
 
 				self.refresh = function () {
 					self.getRowsHeight(rows) && self.update(rows);
-				}
+				};
 				self.setData = function (data) {
 					self.data = data;
 					var rows = Array();
 					rows.length = data.length;
 					self.update(rows);
-				}
+				};
 				self.update = function (new_rows) {
 					rows = new_rows;
 					var scroll_top = self.scroll_elem.scrollTop;
@@ -4377,11 +4379,11 @@
 					}
 					self.insertToDOM(rows, cache);
 					self.scroll_elem.scrollTop = scroll_top;
-				}
+				};
 				self.getScrollProgress = function () {
 					return this.options.scroll_top / (rows.length * this.options.item_height) * 100 || 0;
-				}
-			}
+				};
+			};
 
 			Clusterize.prototype = {
 				constructor: Clusterize,
@@ -4396,7 +4398,7 @@
 				getRowsHeight: function (rows) {
 					var opts = this.options,
 						prev_item_height = opts.item_height;
-					opts.cluster_height = 0
+					opts.cluster_height = 0;
 					if (!rows.length) return;
 					var nodes = this.content_elem.children;
 					opts.item_height = nodes[Math.floor(nodes.length / 2)].offsetHeight;
@@ -4434,7 +4436,7 @@
 							bottom_offset: 0,
 							rows_above: 0,
 							rows: rows
-						}
+						};
 					}
 					if (!opts.cluster_height) {
 						this.createRows(rows, 0, 1);
@@ -4461,7 +4463,7 @@
 						bottom_offset: bottom_offset,
 						rows_above: rows_above,
 						rows: this_cluster_rows
-					}
+					};
 				},
 				renderExtraTag: function (class_name, height) {
 					var tag = document.createElement(this.options.tag);
@@ -4507,7 +4509,7 @@
 					cache[type] = value;
 					return changed;
 				}
-			}
+			};
 
 			// support functions
 			function on(evt, element, fnc) {
@@ -4690,67 +4692,67 @@
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Play from start";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_play_pause(wave, 'start'); }
+			btn.onclick = function () { ws_rtp_playback_control_play_pause(wave, 'start'); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Backward 10s";
-			btn.onclick = function () { ws_rtp_playback_control_skip(wave, -10); }
+			btn.onclick = function () { ws_rtp_playback_control_skip(wave, -10); };
 			control_div.appendChild(btn);
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Backward 5s";
-			btn.onclick = function () { ws_rtp_playback_control_skip(wave, -5); }
+			btn.onclick = function () { ws_rtp_playback_control_skip(wave, -5); };
 			control_div.appendChild(btn);
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Play/Pause";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_play_pause(wave, 'toggle'); }
+			btn.onclick = function () { ws_rtp_playback_control_play_pause(wave, 'toggle'); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Forward 5s";
-			btn.onclick = function () { ws_rtp_playback_control_skip(wave, 5); }
+			btn.onclick = function () { ws_rtp_playback_control_skip(wave, 5); };
 			control_div.appendChild(btn);
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "Forward 10s";
-			btn.onclick = function () { ws_rtp_playback_control_skip(wave, 10); }
+			btn.onclick = function () { ws_rtp_playback_control_skip(wave, 10); };
 			control_div.appendChild(btn);
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "0.5x";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 0.5); }
+			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 0.5); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "1.0x";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 1); }
+			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 1); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "1.5x";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 1.5); }
+			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 1.5); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "2.0x";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 2); }
+			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 2); };
 
 			btn = document.createElement("button");
 			btn.className = "btn btn-primary";
 			btn.innerHTML = "4.0x";
 			control_div.appendChild(btn);
-			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 4); }
+			btn.onclick = function () { ws_rtp_playback_control_speed(wave, 4); };
 
 			/*
 				if (wave != null)
