@@ -4,13 +4,11 @@
 
 import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { WebsharkView, SharkdProcess } from './websharkView';
+import { WebsharkView, SharkdProcess, WebsharkViewSerializer } from './websharkView';
 import { statSync } from 'fs';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
-
-let _sharkds: SharkdProcess[] = [];
 
 function fileExists(filePath: string) {
 	try {
@@ -35,9 +33,6 @@ export function activate(context: vscode.ExtensionContext) {
 		reporter?.sendTelemetryEvent('activate');
 	}
 
-	// check whether we can find sharkd
-	let _nextSharkdId = 1;
-
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
 		let _sharkdPath = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath"));
@@ -53,12 +48,11 @@ export function activate(context: vscode.ExtensionContext) {
 				async (uris: vscode.Uri[] | undefined) => {
 					if (uris) {
 						uris.forEach((uri) => {
-							console.log(`open dlt got URI=${uri.toString()} and ${_sharkds.length} sharkd processes`);
-							const sharkd = new SharkdProcess(_sharkdPath, _nextSharkdId++);
+							console.log(`open dlt got URI=${uri.toString()}`);
+							const sharkd = new SharkdProcess(_sharkdPath);
 							sharkd.ready().then((ready) => {
 								if (ready) {
-									_sharkds.push();
-									context.subscriptions.push(new WebsharkView(context, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+									context.subscriptions.push(new WebsharkView(undefined, context, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
 									if (reporter) { reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
 								} else {
 									vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
@@ -72,10 +66,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vsc-webshark',
+		new WebsharkViewSerializer(reporter, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
+			context, (r) => { console.log(` openSerialized dispose called`); })));
+
 }
 
 // this method is called when your extension is deactivated
 export function deactivate() {
-	console.log(`${extensionId} is deactivated ${_sharkds.length} sharkd processes`);
+	console.log(`${extensionId} is deactivated`);
 	// todo close them.
 }

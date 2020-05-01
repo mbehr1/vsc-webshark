@@ -12,11 +12,11 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
 - Display filter with known syntax from wireshark
 - ...
 
-The extension uses telemetry with one events (`open file` (err (0: ok, -1: connection to sharkd not possible) as parameter)) if telemetry is activated within your general configuration.
+The extension uses telemetry with one event (`open file`, errorcode as parameter) if telemetry is activated within your general configuration.
 
 ## Planned features
 
-- add **Time sync** support to work with [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.smart-log.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) and [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.dlt-logs.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs)
+- add **Time sync** support to work with **smart-log**[![Version](https://vsmarketplacebadge.apphb.com/version-short/mbehr1.smart-log.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) and **dlt-logs**[![Version](https://vsmarketplacebadge.apphb.com/version-short/mbehr1.dlt-logs.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs) extensions.
 
 ## Requirements
 
@@ -33,9 +33,9 @@ This extension contributes the following settings:
 Little testing done yet.
 
 * layout not adapting height.
-* automatic reopening on vscode restart not working.
-* after putting document in background filter settings get lost.
 * Scheme colors/options only partially used. Might not be readable/useable in some settings. I used a dark scheme during development only.
+* use getState/setState instead of retainContextWhenHidden
+* filter, selected frame, ... not persisted on reopen
 
 ## Release Notes
 

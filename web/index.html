@@ -12,6 +12,7 @@
 
 	<script>
 		const vscode = acquireVsCodeApi(); // acquireVsCodeApi can only be invoked once
+		vscode.setState({ uri: '{{uri}}' }); // todo or check getState and remain some?
 	</script>
 
 	<script type="text/javascript"> const localRoot = "{{localRoot}}"; console.log('localRoot=' + localRoot);</script>

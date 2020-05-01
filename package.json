@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -23,6 +23,7 @@
 		"Other"
 	],
 	"activationEvents": [
+		"onWebviewPanel:vsc-webshark",
 		"onCommand:webshark.openFile"
 	],
 	"main": "./out/extension.js",

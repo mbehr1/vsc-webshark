@@ -6,13 +6,18 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
+import TelemetryReporter from 'vscode-extension-telemetry';
+
+let _nextSharkdId = 1;
 
 export class SharkdProcess implements vscode.Disposable {
+    public id: number;
     private _proc: ChildProcess;
     public running: boolean = false;
     private _ready: boolean = false; // after "Hello in child"
     private _readyPromises: ((value: boolean) => void)[] = [];
-    constructor(sharkdPath: string, public id: number) {
+    constructor(sharkdPath: string) {
+        this.id = _nextSharkdId++;
         this._proc = spawn(sharkdPath, ['-'], {
             cwd: '/tmp/',
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -70,6 +75,34 @@ export class SharkdProcess implements vscode.Disposable {
     }
 }
 
+export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
+    constructor(private reporter: TelemetryReporter, private sharkdPath: string, private context: vscode.ExtensionContext, private callOnDispose: (r: WebsharkView) => any) {
+
+    }
+    async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
+        console.log(`WebsharkView deserializeWebviewPanel called. state='${JSON.stringify(state)}'`);
+        try {
+            if ('uri' in state) {
+                const uri: vscode.Uri = vscode.Uri.parse(state.uri, true);
+                console.log(`creating WebsharkView for uri=${uri.toString()}`);
+
+                const sharkd = new SharkdProcess(this.sharkdPath);
+                sharkd.ready().then((ready) => {
+                    if (ready) {
+                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+                        if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
+                    } else {
+                        vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
+                        if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': -1 }); }
+                    }
+                });
+
+            } else { console.warn(`deserializeWebviewPanel but no uri within state='${JSON.stringify(state)}'`); }
+        } catch (err) {
+            console.warn(`deserializeWebviewPanel got err=${err} with state='${JSON.stringify(state)}'`);
+        }
+    }
+}
 
 export class WebsharkView implements vscode.Disposable {
 
@@ -81,7 +114,7 @@ export class WebsharkView implements vscode.Disposable {
     private _pendingResponses: number[] = [];
     private _partialResponse: Buffer | null = null;
 
-    constructor(private context: vscode.ExtensionContext, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
+    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
 
         this._pendingResponses.push(-1);
         this._sharkd.stdin?.write(`{"req":"load","file":"${uri.fsPath}"}\n`);
@@ -161,11 +194,17 @@ export class WebsharkView implements vscode.Disposable {
             }
         });
 
-        this.panel = vscode.window.createWebviewPanel("vsc-webshark", uri.fsPath.toString(), vscode.ViewColumn.Active,
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'web'))]
-            });
+        if (panel === undefined) {
+            this.panel = vscode.window.createWebviewPanel("vsc-webshark", uri.fsPath.toString(), vscode.ViewColumn.Active,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'web'))]
+                });
+        } else {
+            this.panel = panel;
+            // todo check options?
+        }
 
         this.panel.onDidDispose(() => {
             console.log(`WebsharkView panel onDidDispose called.`);
@@ -229,7 +268,8 @@ export class WebsharkView implements vscode.Disposable {
             let htmlString = htmlFile.toString().replace(/{{localRoot}}/g,
                 this.panel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'web'))).toString());
 
-            htmlString = htmlString.replace(/{{fileName}}/g, path.basename(uri.fsPath));
+            htmlString = htmlString.replace(/{{fileName}}/g, path.basename(uri.fsPath)).
+                replace(/{{uri}}/g, uri.toString());
             this.panel.webview.html = htmlString;
         } else {
             vscode.window.showErrorMessage(`couldn't load web/index.html`);
