@@ -104,6 +104,11 @@ export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
     }
 }
 
+interface ResponseData {
+    startTime: number;
+    id: number;
+}
+
 export class WebsharkView implements vscode.Disposable {
 
     panel: vscode.WebviewPanel | undefined;
@@ -111,13 +116,15 @@ export class WebsharkView implements vscode.Disposable {
     private _msgsToPost: any[] = []; // msgs queued to be send to panel once alive
 
     lastChangeActive: Date | undefined;
-    private _pendingResponses: number[] = [];
+    private _pendingResponses: ResponseData[] = [];
     private _partialResponse: Buffer | null = null;
 
     constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
 
-        this._pendingResponses.push(-1);
+        this._pendingResponses.push({ startTime: Date.now(), id: -1 });
         this._sharkd.stdin?.write(`{"req":"load","file":"${uri.fsPath}"}\n`);
+        /*this._pendingResponses.push({ startTime: Date.now(), id: -2 });
+        this._sharkd.stdin?.write(`{"req":"dumpconf"}\n`);*/
 
         let dataTimeout: NodeJS.Timeout | null = null;
         this._sharkd.stdout?.on("data", (data) => {
@@ -135,12 +142,12 @@ export class WebsharkView implements vscode.Disposable {
             do {
                 gotObj = false;
                 if (this._partialResponse) {
-                    const crPos = this._partialResponse.indexOf('\n', undefined, "utf8"); // todo finds \\n inside json as well!
+                    const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
                     if (crPos === 0) {
                         console.log(`crPos = 0! partialResponse.length=${this._partialResponse.length}`);
                         if (this._partialResponse.length > 1) {
                             // remove the leading \n
-                            this._partialResponse = this._partialResponse?.slice(crPos + 1);
+                            this._partialResponse = this._partialResponse?.slice(crPos + 2);
                             gotObj = true; // and parse the rest.
                         } else {
                             this._partialResponse = null;
@@ -150,7 +157,8 @@ export class WebsharkView implements vscode.Disposable {
                             let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
                             jsonObjs.push(jsonObj);
                             if (crPos > 0 && crPos < this._partialResponse.length - 2) {
-                                this._partialResponse = this._partialResponse?.slice(crPos + 1);
+                                console.log(`crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
+                                this._partialResponse = this._partialResponse?.slice(crPos + 2);
                                 gotObj = true;
                             } else {
                                 this._partialResponse = null;
@@ -171,10 +179,11 @@ export class WebsharkView implements vscode.Disposable {
                 do {
                     const reqId = this._pendingResponses.shift();
                     const jsonObj = jsonObjs.shift();
-                    if (reqId && reqId >= 0) {
-                        this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId });
+                    if (reqId && reqId.id >= 0) {
+                        this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
+                        console.log(`sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
                     } else {
-                        console.log(`WebsharkView sharkdCon got data for reqId=${reqId} data=${JSON.stringify(jsonObj)}!`);
+                        console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
                     }
                 } while (jsonObjs.length > 0);
             } else {
@@ -184,10 +193,10 @@ export class WebsharkView implements vscode.Disposable {
                     clearTimeout(dataTimeout);
                 }
                 dataTimeout = setTimeout(() => {
-                    const reqId = this._pendingResponses.shift();
-                    console.warn(`throwing away partialResponse len=${this._partialResponse?.length} for reqId=${reqId} after timeout`);
-                    if (reqId && reqId >= 0) {
-                        this.postMsgOnceAlive({ command: "sharkd res", res: {}, id: reqId });
+                    const req = this._pendingResponses.shift();
+                    console.warn(`throwing away partialResponse len=${this._partialResponse?.length} for reqId=${req?.id} after timeout`);
+                    if (req && req.id >= 0) {
+                        this.postMsgOnceAlive({ command: "sharkd res", res: {}, id: req.id });
                     }
                     this._partialResponse = null;
                 }, 60000);
@@ -209,7 +218,7 @@ export class WebsharkView implements vscode.Disposable {
         this.panel.onDidDispose(() => {
             console.log(`WebsharkView panel onDidDispose called.`);
             this.panel = undefined;
-            this._sharkd.dispose();
+            this._sharkd.dispose(); // could send 'bye' as well
             this.dispose(); // we close now as well
         });
 
@@ -252,7 +261,7 @@ export class WebsharkView implements vscode.Disposable {
                                 this.postMsgOnceAlive({ command: "sharkd res", res: answerObj, id: e.id });
                                 break;
                             default:
-                                this._pendingResponses.push(e.id);
+                                this._pendingResponses.push({ startTime: Date.now(), id: e.id });
                                 this._sharkd.stdin?.write(`${e.req}\n`);
                         }
                     } catch (err) {

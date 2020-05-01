@@ -58,18 +58,18 @@
 		}
 
 		Webshark.prototype.load = function (filename, cb) {
-			console.log("app.js load filename=" + filename);
+			console.log("app.js load filename=" + filename); // todo we don't need the file name here
 			var req_status =
 			{
-				req: 'status',
-				capture: filename
+				req: 'status'
 			};
 
 			var that = this;
 
 			webshark_json_get(req_status,
 				function (data) {
-					data['filename'] = filename; /* we know better */
+					// data['filename'] = filename; /* we know better */
+					// if empty we could trigger a load file request here...
 
 					that.status = data;
 					cb(data);
@@ -158,8 +158,8 @@
 		Webshark.prototype.update = function () {
 			var req_intervals =
 			{
-				req: 'intervals',
-				capture: g_webshark_file
+				req: 'intervals'// ,
+				// intervals has no capture param at orig sharkd capture: g_webshark_file
 			};
 
 			if (this.filter)
@@ -191,8 +191,7 @@
 		Webshark.prototype.fetchColumns = function (skip, load_first) {
 			var req_frames =
 			{
-				req: 'frames',
-				capture: g_webshark_file
+				req: 'frames'
 			};
 
 			if (this.fetch_columns_limit != 0)
