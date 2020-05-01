@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 
-export class SharkdProcess {
+export class SharkdProcess implements vscode.Disposable {
     private _proc: ChildProcess;
     public running: boolean = false;
     private _ready: boolean = false; // after "Hello in child"
@@ -27,7 +27,7 @@ export class SharkdProcess {
             this._readyPromises = [];
         });
         this._proc.on('close', (code) => {
-            console.warn(`SharkdProcess(${this.id}) closed with: ${code}`);
+            console.log(`SharkdProcess(${this.id}) closed with: ${code}`);
             this.running = false;
             this._ready = false;
             this._readyPromises.forEach((p) => p(false));
@@ -47,6 +47,10 @@ export class SharkdProcess {
         /*this._proc.stdout?.on('data', (data) => {
             console.warn(`SharkdProcess(${this.id}) stdout: '${data.toString()}'`);
         });*/
+    }
+
+    dispose() {
+        this._proc.kill(); // send SIGTERM
     }
 
     ready(): Promise<boolean> {
@@ -166,6 +170,7 @@ export class WebsharkView implements vscode.Disposable {
         this.panel.onDidDispose(() => {
             console.log(`WebsharkView panel onDidDispose called.`);
             this.panel = undefined;
+            this._sharkd.dispose();
             this.dispose(); // we close now as well
         });
 
