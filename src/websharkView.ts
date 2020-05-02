@@ -16,7 +16,12 @@ export class SharkdProcess implements vscode.Disposable {
     public running: boolean = false;
     private _ready: boolean = false; // after "Hello in child"
     private _readyPromises: ((value: boolean) => void)[] = [];
-    constructor(sharkdPath: string) {
+    private _partialResponse: Buffer | null = null;
+    private _dataTimeout: NodeJS.Timeout | null = null;
+
+    public _onDataFunction: null | ((objs: any[]) => void) = null;
+
+    constructor(public sharkdPath: string) {
         this.id = _nextSharkdId++;
         this._proc = spawn(sharkdPath, ['-'], {
             cwd: '/tmp/',
@@ -49,9 +54,68 @@ export class SharkdProcess implements vscode.Disposable {
                 console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
             }
         });
-        /*this._proc.stdout?.on('data', (data) => {
-            console.warn(`SharkdProcess(${this.id}) stdout: '${data.toString()}'`);
-        });*/
+        this._proc.stdout?.on("data", (data) => {
+            console.log(`SharkdProcess(${this.id}) got data len=${data.length} '${data.slice(0, 70).toString()}'`);
+
+            if (this._partialResponse) {
+                this._partialResponse = Buffer.concat([this._partialResponse, data]);
+            } else {
+                this._partialResponse = data;
+    }
+
+            let jsonObjs: any[] = [];
+
+            let gotObj: boolean;
+            do {
+                gotObj = false;
+                if (this._partialResponse) {
+                    const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
+                    if (crPos === 0) {
+                        console.log(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length}`);
+                        if (this._partialResponse.length > 1) {
+                            // remove the leading \n
+                            this._partialResponse = this._partialResponse?.slice(crPos + 2);
+                            gotObj = true; // and parse the rest.
+                        } else {
+                            this._partialResponse = null;
+                        }
+                    } else {
+                        try {
+                            let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
+                            jsonObjs.push(jsonObj);
+                            if (crPos > 0 && crPos < this._partialResponse.length - 2) {
+                                console.log(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
+                                this._partialResponse = this._partialResponse?.slice(crPos + 2);
+                                gotObj = true;
+                            } else {
+                                this._partialResponse = null;
+                                gotObj = false;
+                            }
+                        } catch (err) {
+                            // we can't parse, so keep the buffer.
+                        }
+                    }
+                }
+            } while (gotObj);
+
+            if (jsonObjs.length > 0) {
+                if (this._dataTimeout) {
+                    clearTimeout(this._dataTimeout);
+                    this._dataTimeout = null;
+                }
+                if (this._onDataFunction) { this._onDataFunction(jsonObjs); }
+                jsonObjs = [];
+            } else {
+                console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
+                console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
+                if (this._dataTimeout) {
+                    clearTimeout(this._dataTimeout);
+                }
+                this._dataTimeout = setTimeout(() => {
+                    if (this._onDataFunction) { this._onDataFunction([{}]); }
+                }, 60000);
+            }
+        });
     }
 
     dispose() {
@@ -130,7 +194,6 @@ export class WebsharkView implements vscode.Disposable {
 
     lastChangeActive: Date | undefined;
     private _pendingResponses: ResponseData[] = [];
-    private _partialResponse: Buffer | null = null;
 
     constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
 
@@ -139,56 +202,10 @@ export class WebsharkView implements vscode.Disposable {
         /*this._pendingResponses.push({ startTime: Date.now(), id: -2 });
         this._sharkd.stdin?.write(`{"req":"dumpconf"}\n`);*/
 
-        let dataTimeout: NodeJS.Timeout | null = null;
-        this._sharkd.stdout?.on("data", (data) => {
-            console.log(`WebsharkView sharkdCon got data len=${data.length} '${data.slice(0, 70).toString()}'`);
-
-            if (this._partialResponse) {
-                this._partialResponse = Buffer.concat([this._partialResponse, data]);
-            } else {
-                this._partialResponse = data;
-            }
-
-            let jsonObjs: any[] = [];
-
-            let gotObj: boolean;
-            do {
-                gotObj = false;
-                if (this._partialResponse) {
-                    const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
-                    if (crPos === 0) {
-                        console.log(`WebsharkView crPos = 0! partialResponse.length=${this._partialResponse.length}`);
-                        if (this._partialResponse.length > 1) {
-                            // remove the leading \n
-                            this._partialResponse = this._partialResponse?.slice(crPos + 2);
-                            gotObj = true; // and parse the rest.
-                        } else {
-                            this._partialResponse = null;
-                        }
-                    } else {
-                        try {
-                            let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
-                            jsonObjs.push(jsonObj);
-                            if (crPos > 0 && crPos < this._partialResponse.length - 2) {
-                                console.log(`WebsharkView crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
-                                this._partialResponse = this._partialResponse?.slice(crPos + 2);
-                                gotObj = true;
-                            } else {
-                                this._partialResponse = null;
-                                gotObj = false;
-                            }
-                        } catch (err) {
-                            // we can't parse, so keep the buffer.
-                        }
-                    }
-                }
-            } while (gotObj);
-
+        this._sharkd._onDataFunction =
+            (jsonObjs) => {
+                console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
             if (jsonObjs.length > 0) {
-                if (dataTimeout) {
-                    clearTimeout(dataTimeout);
-                    dataTimeout = null;
-                }
                 do {
                     const reqId = this._pendingResponses.shift();
                     const jsonObj = jsonObjs.shift();
@@ -199,22 +216,8 @@ export class WebsharkView implements vscode.Disposable {
                         console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
                     }
                 } while (jsonObjs.length > 0);
-            } else {
-                console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
-                console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
-                if (dataTimeout) {
-                    clearTimeout(dataTimeout);
                 }
-                dataTimeout = setTimeout(() => {
-                    const req = this._pendingResponses.shift();
-                    console.warn(`WebsharkView throwing away partialResponse len=${this._partialResponse?.length} for reqId=${req?.id} after timeout`);
-                    if (req && req.id >= 0) {
-                        this.postMsgOnceAlive({ command: "sharkd res", res: {}, id: req.id });
-                    }
-                    this._partialResponse = null;
-                }, 60000);
-            }
-        });
+            };
 
         if (panel === undefined) {
             this.panel = vscode.window.createWebviewPanel("vsc-webshark", uri.fsPath.toString(), vscode.ViewColumn.Active,
