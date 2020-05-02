@@ -156,6 +156,8 @@
 			const state = vscode.getState();
 			state.filter = this.filter;
 			vscode.setState(state);
+			// and inform websharkView.ts:
+			vscode.postMessage({ message: "set filter", filter: this.filter });
 
 			this.cached_columns = [];
 

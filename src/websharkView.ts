@@ -55,7 +55,7 @@ export class SharkdProcess implements vscode.Disposable {
             }
         });
         this._proc.stdout?.on("data", (data) => {
-            console.log(`SharkdProcess(${this.id}) got data len=${data.length} '${data.slice(0, 70).toString()}'`);
+            //console.log(`SharkdProcess(${this.id}) got data len=${data.length} '${data.slice(0, 70).toString()}'`);
 
             if (this._partialResponse) {
                 this._partialResponse = Buffer.concat([this._partialResponse, data]);
@@ -106,8 +106,8 @@ export class SharkdProcess implements vscode.Disposable {
                 if (this._onDataFunction) { this._onDataFunction(jsonObjs); }
                 jsonObjs = [];
             } else {
-                console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
-                console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
+                //console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
+                // console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
                 if (this._dataTimeout) {
                     clearTimeout(this._dataTimeout);
                 }
@@ -130,14 +130,14 @@ export class SharkdProcess implements vscode.Disposable {
         });
     }
 
-    get stdin() {
-        return this._proc.stdin;
+    sendRequest(req: string) {
+        this._proc.stdin?.write(`${req}\n`);
+    }
+    sendRequestObj(req: object) {
+        this._proc.stdin?.write(`${JSON.stringify(req)}\n`);
     }
 
-    get stdout() {
-        return this._proc.stdout;
     }
-}
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
     constructor(private reporter: TelemetryReporter, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private callOnDispose: (r: WebsharkView) => any) {
@@ -195,16 +195,29 @@ export class WebsharkView implements vscode.Disposable {
     lastChangeActive: Date | undefined;
     private _pendingResponses: ResponseData[] = [];
 
+    private _sharkd2: SharkdProcess; // we keep a 2nd for indexing in parallel...
+    private _sharkd2Cbs: { startTime: number, req: any, cb: ((jsonObj: object) => void) }[] = [];
+
+    // timer interval infos:
+    private _sharkd2Info: any; // objected returned on 'info' request. Has columns,...
+    private _utcTimeColumnIdx: number = -1;
+    private _fileStatus: any; // the object returned on 'status' request. Has frames, duration (time diff betw first and last) as properties
+    private _firstFrame: any; // first frame from the unfiltered file
+    private _firstFrameTime: Date | undefined;
+    private _firstInfosLoaded: boolean = false;
+    private _activeFilter: string | undefined;
+    private _timeIntsBySec: any; // the object returned on last 'intervals' request.
+
     constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
 
         this._pendingResponses.push({ startTime: Date.now(), id: -1 });
-        this._sharkd.stdin?.write(`{"req":"load","file":"${uri.fsPath}"}\n`);
+        this._sharkd.sendRequest(`{"req":"load","file":"${uri.fsPath}"}`);
         /*this._pendingResponses.push({ startTime: Date.now(), id: -2 });
         this._sharkd.stdin?.write(`{"req":"dumpconf"}\n`);*/
 
         this._sharkd._onDataFunction =
             (jsonObjs) => {
-                console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
+                // console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
             if (jsonObjs.length > 0) {
                 do {
                     const reqId = this._pendingResponses.shift();
@@ -277,7 +290,7 @@ export class WebsharkView implements vscode.Disposable {
                                 break;
                             default:
                                 this._pendingResponses.push({ startTime: Date.now(), id: e.id });
-                                this._sharkd.stdin?.write(`${e.req}\n`);
+                                this._sharkd.sendRequest(e.req);
                         }
                     } catch (err) {
                         console.warn(`WebsharkView.onDidReceiveMessage sharkd req got err=${err}`, e);
@@ -291,6 +304,17 @@ export class WebsharkView implements vscode.Disposable {
                         this._onDidChangeSelectedTime.fire({ time: time, uri: this.uri });
                     } catch (err) {
                         console.warn(`WebsharkView.onDidReceiveMessage 'time update' got err=${err}`, e);
+                    }
+                    break;
+                case 'set filter':
+                    try {
+                        console.log(`WebsharkView 'set filter' filter=${JSON.stringify(e.filter)}`);
+                        this._activeFilter = e.filter;
+                        // we load the new time indices...
+                        // but only if first infos are not loaded yet. Otherwise it happens autom.
+                        if (this._firstInfosLoaded) { this.updateTimeIndices(this._activeFilter); }
+                    } catch (err) {
+                        console.warn(`WebsharkView.onDidReceiveMessage 'set' got err=${err}`, e);
                     }
                     break;
                 default:
@@ -314,6 +338,65 @@ export class WebsharkView implements vscode.Disposable {
         }
 
         this.postMsgOnceAlive({ command: 'ready' });
+
+        // start the 2nd sharkd process last:
+        this._sharkd2 = new SharkdProcess(this._sharkd.sharkdPath);
+        this._sharkd2._onDataFunction = (jsonObjs) => {
+            for (let i = 0; i < jsonObjs.length; ++i) {
+                const cb = this._sharkd2Cbs.shift();
+                if (cb !== undefined) {
+                    console.log(`WebsharkView sharkd2 req ${JSON.stringify(cb.req)} took ${Date.now() - cb.startTime}ms`);
+                    cb.cb(jsonObjs[i]);
+                } else {
+                    console.error(`WebsharkView sharkd2 got data but have no cb! obj=${JSON.stringify(jsonObjs[i])}`);
+    }
+            }
+        };
+        // load the file here as well: todo might delay until the first one has fully loaded the file
+        // but with all our multi-core cpus it should run fine in parallel... todo
+        // as long as sharkd2 is not ready it's not granted that requests are done in fifo order.
+
+        this.sharkd2Request({ req: 'load', file: uri.fsPath }, (res: any) => {
+            console.log(`WebsharkView sharkd2 'load file' got res=${JSON.stringify(res)}`);
+            if (res.err !== 0) {
+                console.error(`WebsharkView sharkd2 'load file' got err=${res.err}`);
+                // if not err: 0 we could e.g. kill and don't offer time services...
+            }
+
+            // load the column infos:
+            this.sharkd2Request({ req: 'info' }, (res: any) => {
+                console.log(`WebsharkView sharkd2 'info' got sharkd version=${res.version}`);
+                this._sharkd2Info = res;
+                const ws_d_columns = res['columns'];
+                for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
+                    if (ws_d_columns[col_map].format === '%Yut') {
+                        this._utcTimeColumnIdx = col_map;
+                        break;
+                    }
+                }
+                if (this._utcTimeColumnIdx < 0) {
+                    console.warn(`WebsharkView couldn't determine utc time column!`);
+                } else {
+                    // load the status info:
+                    this.sharkd2Request({ req: 'status' }, (res: any) => {
+                        console.log(`WebsharkView sharkd2 'status' res=${JSON.stringify(res)}`);
+                        this._fileStatus = res;
+
+
+                        // load the first frame to get the abs time reference:
+                        this.sharkd2Request({ req: 'frames', limit: 1, column0: this._utcTimeColumnIdx }, (res: any) => {
+                            console.log(`WebsharkView sharkd2 'frames' got frame #${res[0].num} res=${JSON.stringify(res).slice(0, 200)}`);
+                            this._firstFrame = res;
+                            this._firstFrameTime = new Date(res[0].c[0]);
+                            console.log(`WebsharkView firstFrameTime=${this._firstFrameTime.toUTCString()}`);
+
+                            this._firstInfosLoaded = true;
+                            this.updateTimeIndices(this._activeFilter);
+                        });
+                    });
+                }
+            });
+        });
     }
 
     dispose() {
@@ -322,6 +405,7 @@ export class WebsharkView implements vscode.Disposable {
             this.panel.dispose();
             this.panel = undefined;
         }
+        this._sharkd2.dispose();
         this.callOnDispose(this);
     }
 
@@ -335,4 +419,96 @@ export class WebsharkView implements vscode.Disposable {
             this._msgsToPost.push(msg);
         }
     };
+
+    sharkd2Request(req: object, cb: (res: object) => void) {
+        this._sharkd2.ready().then((ready) => {
+            if (ready) {
+                this._sharkd2.sendRequestObj(req);
+                this._sharkd2Cbs.push({ startTime: Date.now(), req: req, cb: cb });
+            } else {
+                console.error(`WebsharkView sharkd2 not ready for req ${JSON.stringify(req)}`);
+                cb({});
+            }
+        });
+    }
+
+    updateTimeIndices(filter: string | undefined) {
+        console.log(`WebsharkView.updateTimeIndices(filter=${filter})`);
+        let req: any = { req: 'intervals', interval: 1000 /* sec */ }; // todo if this ever gets too large we might have to add hours as interims.
+        if (filter) { req.filter = filter; }
+        this.sharkd2Request(req, (res: any) => {
+            console.log(`WebsharkView.updateTimeIndices got res for 'intervals' res=${JSON.stringify(res).slice(0, 100)}`);
+            console.log(`WebsharkView.updateTimeIndices  frames=${res.frames} last=${res.last} #intervals=${res.intervals.length}`);
+            this._timeIntsBySec = res;
+            // we add the filter info:
+            if (req.filter) { this._timeIntsBySec.filter = req.filter; }
+        });
+    }
+
+    getFrameIdxForTime(time: Date): Promise<number | null> {
+        // we return null, if the time filter doesn't match yet... (todo optimize this)
+        console.log(`WebsharkView.getFrameIdxForTime(${time.toUTCString()}.${time.valueOf() % 1000})...`);
+        return new Promise((resolve) => {
+            if (!this._timeIntsBySec || this._timeIntsBySec.filter !== this._activeFilter) { resolve(null); return; }
+            if (!this._firstFrameTime || !this._fileStatus) { resolve(null); return; }
+            const timeVal = time.valueOf();
+            const firstFrameTimeVal = this._firstFrameTime.valueOf();
+            const durationMs = this._fileStatus.duration * 1000; // number in secs, -> ms.
+
+            if (firstFrameTimeVal > timeVal) { resolve(0); console.warn(`WebsharkView.getFrameIdxForTime returning 0 due to > time`); return; }
+            if (firstFrameTimeVal + durationMs < timeVal) { resolve(null); console.warn(`WebsharkView.getFrameIdxForTime returning null due to last < time`); return; }
+
+            // ok. we're within...
+            // search the sec indices.
+            const timeInts = this._timeIntsBySec.intervals; // [idx of interval, numer of frames, number of bytes]
+            const timeValOffset = timeVal - firstFrameTimeVal;
+            let startIdx = 0;
+            let i;
+            for (i = 0; i < timeInts.length; ++i) {
+                const interval = timeInts[i];
+                const intStartTime = 1000 * interval[0];
+                const intEndTime = intStartTime + 1000;
+                if (intEndTime > timeValOffset) { // todo check for very first!
+                    if (intStartTime >= timeValOffset) {
+                        console.log(`WebsharkView.getFrameIdxForTime returning start of intervall at idx=${startIdx}.`);
+                        resolve(startIdx); // this is the closest element >=..
+                        return;
+                    }
+                    // found the right interval but need to search the closest one within:
+                    break;
+                }
+                startIdx += interval[1];
+            }
+            if (startIdx >= this._fileStatus.frames) {
+                console.warn(`WebsharkView.getFrameIdxForTime returning null (startIdx=${startIdx}>=${this._fileStatus.frames}). Logical error?`);
+                resolve(null);
+                return;
+            }
+            // found the right interval i but need to search the closest one within:
+            console.log(`WebsharkView.getFrameIdxForTime searching interval ${i} with ${timeInts[i][1]} frames at startIdx=${startIdx}`);
+            // for now search via frames:
+            // load the first frame to get the abs time reference:
+            this.sharkd2Request({ req: 'frames', filter: this._activeFilter, skip: startIdx, limit: timeInts[i][1], column0: this._utcTimeColumnIdx }, (res: any) => {
+                console.log(`WebsharkView sharkd2 search 'frames' got frame #${res[0].num} res=${JSON.stringify(res).slice(0, 200)}`);
+                // iterate through all frames:
+                let j;
+                for (j = 0; j < res.length; ++j) {
+                    const frameTime = new Date(res[j].c[0]);
+                    if (frameTime.valueOf() >= timeVal) {
+                        console.log(`WebsharkView.getFrameIdxForTime precise frame idx=${startIdx + j} time=${frameTime.toUTCString()}.${frameTime.valueOf() % 1000}`);
+                        resolve(startIdx + j);
+                        return;
+                    }
+                }
+                if (startIdx + j >= this._fileStatus.frames) {
+                    console.warn(`WebsharkView.getFrameIdxForTime returning null (startIdx=${startIdx + j}>=${this._fileStatus.frames})`);
+                    resolve(null);
+                }
+                console.log(`WebsharkView.getFrameIdxForTime didnt found in frames. returning next one idx=${startIdx + j}.`);
+                resolve(startIdx + j);
+            });
+        });
+    }
+
+
 }
