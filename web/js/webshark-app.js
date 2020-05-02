@@ -263,6 +263,11 @@
 			}
 		};
 
+		Webshark.prototype.revealFrameIdx = function (frameIdx) {
+			// reveal frame by idx [0..nrFrames in cur. filter)
+			g_webshark_packet_list.revealFrameIdx(frameIdx);
+		};
+
 		Webshark.prototype.getComment = function (framenum, func) {
 			webshark_json_get(
 				{
@@ -1494,6 +1499,10 @@
 		WSPacketList.prototype.setPackets = function (packets) {
 			// don't work this.cluster.scroll_elem.scrollTop = 0;
 			this.cluster.setData(packets);
+		};
+
+		WSPacketList.prototype.revealFrameIdx = function (frameIdx) {
+			return this.cluster.revealItem(frameIdx);
 		};
 
 		exports.m_COLUMN_DOWNLOADING = m_COLUMN_DOWNLOADING;
@@ -4411,6 +4420,12 @@
 				};
 				self.getScrollProgress = function () {
 					return this.options.scroll_top / (rows.length * this.options.item_height) * 100 || 0;
+				};
+				self.revealItem = function (item) {
+					console.log('Clusterize revealItem #' + item + '/' + rows.length);
+					if (item >= 0 && item < rows.length) {
+						self.scroll_elem.scrollTop = item * this.options.item_height;
+					}
 				};
 			};
 

@@ -435,6 +435,13 @@
 					// console.warn('eventListener message got ' + message.command);
 					switch (message.command) {
 						case 'sharkd res': sharkdResponse(message); break;
+						case 'reveal frameIdx':
+							{
+								console.log("eventListener 'reveal frameIdx' #" + message.frameIdx);
+								g_webshark.revealFrameIdx(message.frameIdx);
+								// this doesn't select it. for selecting: sthg like window.webshark.webshark_load_frame(message.frame, true); but delayed
+							}
+							break;
 
 					}
 				} catch (err) {
