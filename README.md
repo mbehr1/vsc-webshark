@@ -35,7 +35,8 @@ Little testing done yet.
 * layout not adapting height.
 * Scheme colors/options only partially used. Might not be readable/useable in some settings. I used a dark scheme during development only.
 * use getState/setState instead of retainContextWhenHidden
-* filter, selected frame, ... not persisted on reopen
+* selected frame, ... not persisted on reopen
+* pcapng support in sharkd seems limited. Some files can be opened. Some can't (e.g. test102.pcapng from pcapng-test-generator). Consider converting them first.
 
 ## Release Notes
 

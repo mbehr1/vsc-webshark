@@ -61,7 +61,7 @@ export class SharkdProcess implements vscode.Disposable {
                 this._partialResponse = Buffer.concat([this._partialResponse, data]);
             } else {
                 this._partialResponse = data;
-    }
+            }
 
             let jsonObjs: any[] = [];
 
@@ -137,10 +137,10 @@ export class SharkdProcess implements vscode.Disposable {
         this._proc.stdin?.write(`${JSON.stringify(req)}\n`);
     }
 
-    }
+}
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
-    constructor(private reporter: TelemetryReporter, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private callOnDispose: (r: WebsharkView) => any) {
+    constructor(private reporter: TelemetryReporter, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
 
     }
     async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
@@ -153,7 +153,7 @@ export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
                 const sharkd = new SharkdProcess(this.sharkdPath);
                 sharkd.ready().then((ready) => {
                     if (ready) {
-                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this._onDidChangeSelectedTime, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this._onDidChangeSelectedTime, uri, sharkd, this.activeViews, this.callOnDispose));
                         if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
                     } else {
                         vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
@@ -208,7 +208,7 @@ export class WebsharkView implements vscode.Disposable {
     private _activeFilter: string | undefined;
     private _timeIntsBySec: any; // the object returned on last 'intervals' request.
 
-    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, private callOnDispose: (r: WebsharkView) => any) {
+    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
 
         this._pendingResponses.push({ startTime: Date.now(), id: -1 });
         this._sharkd.sendRequest(`{"req":"load","file":"${uri.fsPath}"}`);
@@ -218,17 +218,17 @@ export class WebsharkView implements vscode.Disposable {
         this._sharkd._onDataFunction =
             (jsonObjs) => {
                 // console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
-            if (jsonObjs.length > 0) {
-                do {
-                    const reqId = this._pendingResponses.shift();
-                    const jsonObj = jsonObjs.shift();
-                    if (reqId && reqId.id >= 0) {
-                        this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
-                        console.log(`WebsharkView sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
-                    } else {
-                        console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
-                    }
-                } while (jsonObjs.length > 0);
+                if (jsonObjs.length > 0) {
+                    do {
+                        const reqId = this._pendingResponses.shift();
+                        const jsonObj = jsonObjs.shift();
+                        if (reqId && reqId.id >= 0) {
+                            this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
+                            console.log(`WebsharkView sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
+                        } else {
+                            console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
+                        }
+                    } while (jsonObjs.length > 0);
                 }
             };
 
@@ -349,7 +349,7 @@ export class WebsharkView implements vscode.Disposable {
                     cb.cb(jsonObjs[i]);
                 } else {
                     console.error(`WebsharkView sharkd2 got data but have no cb! obj=${JSON.stringify(jsonObjs[i])}`);
-    }
+                }
             }
         };
         // load the file here as well: todo might delay until the first one has fully loaded the file
@@ -397,6 +397,7 @@ export class WebsharkView implements vscode.Disposable {
                 }
             });
         });
+        activeViews.push(this);
     }
 
     dispose() {
@@ -510,5 +511,18 @@ export class WebsharkView implements vscode.Disposable {
         });
     }
 
-
+    async handleDidChangeSelectedTime(ev: SelectedTimeData) {
+        if (this.uri.toString() !== ev.uri.toString()) { // avoid reacting on our own events...
+            console.log(`WebsharkView.handleDidChangeSelectedTime got ev from uri=${ev.uri.toString()}`);
+            if (ev.time.valueOf() > 0) {
+                if (this._firstFrameTime !== undefined) {
+                    this.getFrameIdxForTime(new Date(ev.time.valueOf())).then((idx) => {
+                        console.warn(`WebsharkView.updateTimeIndices got idx=${idx} for ${ev.time.toUTCString()}`);
+                        if (idx) { this.postMsgOnceAlive({ command: "reveal frameIdx", frameIdx: idx }); }
+                    });
+                }
+            }
+            // todo timeSyncs support
+        }
+    }
 }

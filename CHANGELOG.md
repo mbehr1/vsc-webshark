@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.2.0]
+- time sync part 2: react to broadcasted time events by revealing the frame close to that time.
+
 ## [0.1.0]
 - time sync part 1: double click broadcasts the (utc) time from the selected frame.
 - filter are persisted on vscode restart

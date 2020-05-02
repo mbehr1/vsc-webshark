@@ -18,6 +18,10 @@ function fileExists(filePath: string) {
 	}
 }
 
+const _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData> = new vscode.EventEmitter<SelectedTimeData>();
+let _didChangeSelectedTimeSubscriptions: Array<vscode.Disposable> = new Array<vscode.Disposable>();
+const activeViews: WebsharkView[] = [];
+
 export function activate(context: vscode.ExtensionContext) {
 
 	console.log(`${extensionId} is now active!`);
@@ -32,9 +36,6 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(reporter);
 		reporter?.sendTelemetryEvent('activate');
 	}
-
-	const _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData> = new vscode.EventEmitter<SelectedTimeData>();
-	// const onDidChangeSelectedTime: vscode.Event<SelectedTimeData> = this._onDidChangeSelectedTime.event;
 
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
@@ -55,7 +56,13 @@ export function activate(context: vscode.ExtensionContext) {
 							const sharkd = new SharkdProcess(_sharkdPath);
 							sharkd.ready().then((ready) => {
 								if (ready) {
-									context.subscriptions.push(new WebsharkView(undefined, context, _onDidChangeSelectedTime, uri, sharkd, (r) => { console.log(` openFile dispose called`); }));
+									context.subscriptions.push(new WebsharkView(undefined, context, _onDidChangeSelectedTime, uri, sharkd, activeViews, (r) => {
+										const idx = activeViews.indexOf(r);
+										console.log(` openFile dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
+										if (idx >= 0) {
+											activeViews.splice(idx, 1);
+										}
+									}));
 									if (reporter) { reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
 								} else {
 									vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
@@ -71,7 +78,58 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vsc-webshark',
 		new WebsharkViewSerializer(reporter, _onDidChangeSelectedTime, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
-			context, (r) => { console.log(` openSerialized dispose called`); })));
+			context, activeViews, (r) => {
+				const idx = activeViews.indexOf(r);
+				console.log(` openSerialized dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
+				if (idx >= 0) {
+					activeViews.splice(idx, 1);
+				}
+			})));
+
+	let handleDidChangeSelectedTime = function (ev: SelectedTimeData): void {
+		//console.log(`${extensionId}.handleDidChangeSelectedTime called...`);
+		for (let i = 0; i < activeViews.length; ++i) {
+			activeViews[i].handleDidChangeSelectedTime(ev);
+		}
+	};
+
+	const checkActiveExtensions = function () {
+		_didChangeSelectedTimeSubscriptions.forEach((value) => {
+			if (value !== undefined) {
+				value.dispose();
+			}
+		});
+		while (_didChangeSelectedTimeSubscriptions.length) { _didChangeSelectedTimeSubscriptions.pop(); }
+		vscode.extensions.all.forEach((value) => {
+			if (value.isActive) {
+				try {
+					let importedApi = value.exports;
+					if (importedApi !== undefined) {
+						let subscr = importedApi.onDidChangeSelectedTime(async (ev: SelectedTimeData) => {
+							handleDidChangeSelectedTime(ev);
+						});
+						if (subscr !== undefined) {
+							console.log(` got onDidChangeSelectedTime api from ${value.id}`);
+							_didChangeSelectedTimeSubscriptions.push(subscr);
+						}
+					}
+				} catch (error) {
+					console.log(`${extensionId}.extension ${value.id} throws: ${error}`);
+				}
+			}
+		});
+		console.log(`${extensionId}.checkActiveExtensions: got ${_didChangeSelectedTimeSubscriptions.length} subscriptions.`);
+	};
+
+	// time-sync feature: check other extensions for api onDidChangeSelectedTime and connect to them.
+	// we do have to connect to ourself as well (as we do broadcast within pcap files)
+	context.subscriptions.push(vscode.extensions.onDidChange(() => {
+		console.log(`${extensionId}.extensions.onDidChange #ext=${vscode.extensions.all.length}`);
+		checkActiveExtensions();
+	}));
+	setTimeout(() => {
+		checkActiveExtensions();
+	}, 2000);
 
 	let api = {
 		onDidChangeSelectedTime(listener: any) { return _onDidChangeSelectedTime.event(listener); }
@@ -82,6 +140,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 // this method is called when your extension is deactivated
 export function deactivate() {
-	console.log(`${extensionId} is deactivated`);
-	// todo close them.
+	console.log(`${extensionId} is deactivated. activeViews=${activeViews.length}`);
+	// todo close activeViews
+	_didChangeSelectedTimeSubscriptions.forEach((value) => {
+		if (value !== undefined) {
+			value.dispose();
+		}
+	});
 }
