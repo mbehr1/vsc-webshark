@@ -86,6 +86,12 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			})));
 
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((ev) => {
+		for (let i = 0; i < activeViews.length; ++i) {
+			activeViews[i].onDidChangeConfiguration(ev);
+		}
+	}));
+
 	let handleDidChangeSelectedTime = function (ev: SelectedTimeData): void {
 		//console.log(`${extensionId}.handleDidChangeSelectedTime called...`);
 		for (let i = 0; i < activeViews.length; ++i) {

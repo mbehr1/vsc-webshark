@@ -27,6 +27,7 @@ If you have any requirements or dependencies, add a section describing those and
 This extension contributes the following settings:
 
 * `vsc-webshark.sharkdFullPath`: Specifies the absolute path incl filename to the sharkd binary. This needs to be set after installation.
+* `vsc-webshark.events`: Defined **events* used for time-sync event detection (and for tree-view later).
 
 ## Known Issues
 

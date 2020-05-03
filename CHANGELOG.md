@@ -2,6 +2,10 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.0]
+- time sync part 3: timeSync events. broadcasted and on reception adjust time (not reflected in view but for reveal)
+- event definition is prepared for events explorer tree view (label, level)
+
 ## [0.2.0]
 - time sync part 2: react to broadcasted time events by revealing the frame close to that time.
 

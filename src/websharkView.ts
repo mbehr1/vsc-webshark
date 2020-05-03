@@ -71,7 +71,7 @@ export class SharkdProcess implements vscode.Disposable {
                 if (this._partialResponse) {
                     const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
                     if (crPos === 0) {
-                        console.log(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length}`);
+                        console.log(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length} resp=${this._partialResponse.toString()}`);
                         if (this._partialResponse.length > 1) {
                             // remove the leading \n
                             this._partialResponse = this._partialResponse?.slice(crPos + 2);
@@ -207,6 +207,11 @@ export class WebsharkView implements vscode.Disposable {
     private _firstInfosLoaded: boolean = false;
     private _activeFilter: string | undefined;
     private _timeIntsBySec: any; // the object returned on last 'intervals' request.
+    private _timeAdjustMs: number = 0;
+    public gotTimeSyncEvents: boolean = false; // we reacted to time sync events ( so manually adjusting doesn't make sense as it will change back autom.)
+
+    // time sync support:
+    private _timeSyncEvents: TimeSyncData[] = [];
 
     constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
 
@@ -299,7 +304,7 @@ export class WebsharkView implements vscode.Disposable {
                 case 'time update':
                     try {
                         // post time update...
-                        const time: Date = new Date(e.time);
+                        const time: Date = new Date(new Date(e.time).valueOf() + this._timeAdjustMs);
                         console.log(`WebsharkView posting time update ${time.toLocaleTimeString()}.${String(time.valueOf() % 1000).padStart(3, "0")}`);
                         this._onDidChangeSelectedTime.fire({ time: time, uri: this.uri });
                     } catch (err) {
@@ -367,13 +372,8 @@ export class WebsharkView implements vscode.Disposable {
             this.sharkd2Request({ req: 'info' }, (res: any) => {
                 console.log(`WebsharkView sharkd2 'info' got sharkd version=${res.version}`);
                 this._sharkd2Info = res;
-                const ws_d_columns = res['columns'];
-                for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
-                    if (ws_d_columns[col_map].format === '%Yut') {
-                        this._utcTimeColumnIdx = col_map;
-                        break;
-                    }
-                }
+                let idx = this.getColumnIdx('%Yut');
+                if (idx !== undefined) { this._utcTimeColumnIdx = idx; }
                 if (this._utcTimeColumnIdx < 0) {
                     console.warn(`WebsharkView couldn't determine utc time column!`);
                 } else {
@@ -388,10 +388,12 @@ export class WebsharkView implements vscode.Disposable {
                             console.log(`WebsharkView sharkd2 'frames' got frame #${res[0].num} res=${JSON.stringify(res).slice(0, 200)}`);
                             this._firstFrame = res;
                             this._firstFrameTime = new Date(res[0].c[0]);
-                            console.log(`WebsharkView firstFrameTime=${this._firstFrameTime.toUTCString()}`);
+                            console.log(`WebsharkView firstFrameTime (non adjusted)=${this._firstFrameTime.toUTCString()}`);
 
                             this._firstInfosLoaded = true;
                             this.updateTimeIndices(this._activeFilter);
+
+                            this.scanForEvents();
                         });
                     });
                 }
@@ -443,6 +445,7 @@ export class WebsharkView implements vscode.Disposable {
             this._timeIntsBySec = res;
             // we add the filter info:
             if (req.filter) { this._timeIntsBySec.filter = req.filter; }
+            vscode.window.showInformationMessage('time indices available'); // put into status bar item todo
         });
     }
 
@@ -453,7 +456,7 @@ export class WebsharkView implements vscode.Disposable {
             if (!this._timeIntsBySec || this._timeIntsBySec.filter !== this._activeFilter) { resolve(null); return; }
             if (!this._firstFrameTime || !this._fileStatus) { resolve(null); return; }
             const timeVal = time.valueOf();
-            const firstFrameTimeVal = this._firstFrameTime.valueOf();
+            const firstFrameTimeVal = this._firstFrameTime.valueOf() + this._timeAdjustMs;
             const durationMs = this._fileStatus.duration * 1000; // number in secs, -> ms.
 
             if (firstFrameTimeVal > timeVal) { resolve(0); console.warn(`WebsharkView.getFrameIdxForTime returning 0 due to > time`); return; }
@@ -495,8 +498,8 @@ export class WebsharkView implements vscode.Disposable {
                 let j;
                 for (j = 0; j < res.length; ++j) {
                     const frameTime = new Date(res[j].c[0]);
-                    if (frameTime.valueOf() >= timeVal) {
-                        console.log(`WebsharkView.getFrameIdxForTime precise frame idx=${startIdx + j} time=${frameTime.toUTCString()}.${frameTime.valueOf() % 1000}`);
+                    if ((frameTime.valueOf() + this._timeAdjustMs) >= timeVal) {
+                        console.log(`WebsharkView.getFrameIdxForTime precise frame idx=${startIdx + j} time(not adj)=${frameTime.toUTCString()}.${frameTime.valueOf() % 1000}`);
                         resolve(startIdx + j);
                         return;
                     }
@@ -522,7 +525,148 @@ export class WebsharkView implements vscode.Disposable {
                     });
                 }
             }
-            // todo timeSyncs support
+            if (ev.timeSyncs?.length && this._timeSyncEvents.length) {
+                console.log(` got ${ev.timeSyncs.length} timeSyncs from ${ev.uri.toString()}`);
+                let adjustTimeBy: number[] = [];
+                let reBroadcastEvents: TimeSyncData[] = [];
+
+                // compare with our known timesyncs.
+                for (let i = 0; i < ev.timeSyncs.length; ++i) {
+                    const remoteSyncEv = ev.timeSyncs[i];
+                    console.log(`  got id='${remoteSyncEv.id}' with value='${remoteSyncEv.value} at ${remoteSyncEv.time.toLocaleTimeString()}`);
+                    // do we have this id? (optimize with maps... for now linear (search))
+                    for (let j = 0; j < this._timeSyncEvents.length; ++j) {
+                        const localSyncEv = this._timeSyncEvents[j];
+                        if (remoteSyncEv.id === localSyncEv.id) {
+                            console.log(`  got id='${remoteSyncEv.id}' match. Checking value='${remoteSyncEv.value} at ${remoteSyncEv.time.toLocaleTimeString()}`);
+                            if (remoteSyncEv.value === localSyncEv.value) {
+                                console.log(`   got id='${remoteSyncEv.id}',prio=${remoteSyncEv.prio} and value='${remoteSyncEv.value} match at ${remoteSyncEv.time.toLocaleTimeString()}, prio=${localSyncEv.prio}`);
+                                // todo! (what to do now? how to decide whether to adjust here (and not on the other side...))
+                                // if the received prio is lower we adjust our time... // todo consider 3 documents...
+                                // otherwise we broadcast all values with a lower prio than the current received ones...
+                                if (remoteSyncEv.prio < localSyncEv.prio) {
+                                    adjustTimeBy.push(remoteSyncEv.time.valueOf() - localSyncEv.time.valueOf());
+                                } else if (remoteSyncEv.prio > localSyncEv.prio) {
+                                    reBroadcastEvents.push(localSyncEv);
+                                }
+                            }
+                        }
+                    }
+                }
+                let adjustedTime: boolean = false;
+                if (adjustTimeBy.length) {
+                    const minAdjust = Math.min(...adjustTimeBy);
+                    const maxAdjust = Math.max(...adjustTimeBy);
+                    const avgAdjust = adjustTimeBy.reduce((a, b) => a + b, 0) / adjustTimeBy.length;
+                    console.log(`have ${adjustTimeBy.length} time adjustments with min=${minAdjust}, max=${maxAdjust}, avg=${avgAdjust} ms.`);
+                    if (Math.abs(avgAdjust) > 100) {
+                        this.gotTimeSyncEvents = true;
+                        this.adjustTime(avgAdjust);
+                        adjustedTime = true;
+                    }
+                }
+                if (reBroadcastEvents.length && !adjustedTime) {
+                    console.log(`re-broadcasting ${reBroadcastEvents.length} time syncs via onDidChangeSelectedTime`);
+                    this._onDidChangeSelectedTime.fire({ time: new Date(0), uri: this.uri, timeSyncs: reBroadcastEvents });
+                }
+
+            }
         }
+    }
+
+    getColumnIdx(columnStr: string): number | undefined {
+        const res = this._sharkd2Info;
+        if (res === undefined) { return undefined; }
+        const ws_d_columns = res['columns'];
+        for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
+            if (ws_d_columns[col_map].format === columnStr) {
+                return col_map;
+            }
+        }
+        return undefined;
+    }
+
+    async onDidChangeConfiguration(ev: vscode.ConfigurationChangeEvent) {
+        const affected: boolean = ev.affectsConfiguration("vsc-webshark");
+        console.log(`WebsharkView.onDidChangeConfiguration vsc-webshark. affected=${affected}`);
+        if (affected) {
+            if (ev.affectsConfiguration("vsc-webshark.events") && this._firstInfosLoaded) {
+                this.scanForEvents();
+            }
+        }
+    }
+
+    adjustTime(relOffsetMs: number) {
+        this._timeAdjustMs += relOffsetMs;
+        console.log(`WebsharkView.adjustTime(${relOffsetMs}) to new offset: ${this._timeAdjustMs}`);
+
+        // adjust timeSyncs: as they contain pre-calculated times
+        this._timeSyncEvents.forEach((syncData) => {
+            syncData.time = new Date(syncData.time.valueOf() + relOffsetMs);
+        });
+
+        // and broadcast the new times again
+        this.broadcastTimeSyncs();
+
+        // we might send this time to the webview and store it there for next session persistency? todo
+    }
+
+    broadcastTimeSyncs() {
+        if (this._timeSyncEvents.length) {
+            console.log(`broadcasting ${this._timeSyncEvents.length} time syncs via onDidChangeSelectedTime`);
+            this._onDidChangeSelectedTime.fire({ time: new Date(0), uri: this.uri, timeSyncs: this._timeSyncEvents });
+        }
+    }
+
+    async scanForEvents() {
+
+        this._timeSyncEvents = [];
+
+        // do we have events defined?
+        const events = vscode.workspace.getConfiguration().get<Array<any>>("vsc-webshark.events");
+        console.log(`WebsharkView.scanForEvents have ${events?.length} events`);
+        if (events && events.length) {
+            let infoColumnIdx = this.getColumnIdx('%i'); // what if this doesn't exist?
+
+            for (let i = 0; i < events.length; ++i) {
+                const event = events[i];
+                console.log(`WebsharkView.scanForEvents  processing event ${JSON.stringify(event)}`);
+                // some sanity checks:
+                if (event.displayFilter?.length > 0) {
+                    let req: any = { // todo make limit configurable or remove
+                        req: 'frames', limit: 5000, filter: event.displayFilter, column0: this._utcTimeColumnIdx,
+                        column1: infoColumnIdx
+                    };
+                    // add values to column2,...
+                    if (event.values !== undefined && Array.isArray(event.values)) {
+                        for (let v = 0; v < event.values.length; v++) {
+                            req[`column${v + 2}`] = event.values[v];
+                        }
+                    }
+                    this.sharkd2Request(req, (res: any) => {
+                        console.log(`WebsharkView sharkd2 scan event #'${i}' got ${res.length} frames  res=${JSON.stringify(res).slice(0, 1000)}`);
+                        for (let e = 0; e < res.length; ++e) {
+                            const frame = res[e];
+                            if (event.level > 0) {
+                                // determine label:
+                                let label: string = frame.c[1]; // todo
+                                console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
+                            }
+                            if (event.timeSyncId.length > 0 && event.timeSyncPrio > 0) {
+                                // store as timeSync
+                                let timeSyncValue: string = frame.c.length > 2 ? frame.c[2] : frame.c[1]; // todo for multiple?
+                                let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
+                                console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
+                                this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
+                            }
+                        }
+                    });
+                } else {
+                    console.warn(`WebsharkView.scanForEvents   event missing displayFilter: ${JSON.stringify(event)}`);
+                }
+            }
+        }
+        vscode.window.showInformationMessage('finished scanning for events'); // put into status bar item todo
+        this.broadcastTimeSyncs();
     }
 }

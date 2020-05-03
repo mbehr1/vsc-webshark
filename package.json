@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -42,10 +42,64 @@
 						"type": "string",
 						"default": "sharkd",
 						"description": "Full path incl. file to the Wireshark - sharkd binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/sharkd"
+					},
+					"vsc-webshark.events": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"title": "event",
+							"properties": {
+								"displayFilter": {
+									"type": "string",
+									"description": "Wireshark display filter string used to identify this event."
+								},
+								"values": {
+									"type": "array",
+									"items": {
+										"type": "string",
+										"description": "Wireshark sharkd column expression like %Yut or <displayfilter>:<occurrence>. Values can be used for label or for timeSync feature."
+									}
+								},
+								"label": {
+									"type": "string",
+									"description": "Label of this event. Can contain {x} format expressions that are replaced by x.th (1-based) values (see values). If empty (or {0}) defaults to the info column."
+								},
+								"level": {
+									"type": "integer",
+									"description": "Indent level (1-based) of this event. Level 1 events are the upmost ones. Level 0 wont be added to tree-view but can be used for timeSync.",
+									"default": 0
+								},
+								"timeSyncId": {
+									"type": "string",
+									"description": "Optional identifier of a 'time sync event'. This gets broadcasted to other documents with the time and the first value in lower case"
+								},
+								"timeSyncPrio": {
+									"type": "integer",
+									"description": "Optional (needed if timeSyncId is used) priority of the time-sync event. As two documents exchange their events by this prio they decide on who will adjust the time. The event with the highest prio (lowest number) will be used."
+								}
+							}
+						}
 					}
 				}
 			}
-		]
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "mbehr1Logs",
+					"title": "Logs (smart-/dlt-/webshark-logs)",
+					"icon": "./media/logs.svg"
+				}
+			]
+		},
+		"views": {
+			"mbehr1Logs": [
+				{
+					"id": "websharkEventsExplorer",
+					"name": "events explorer"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
