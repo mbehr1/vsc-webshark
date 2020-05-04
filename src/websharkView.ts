@@ -30,7 +30,7 @@ export class SharkdProcess implements vscode.Disposable {
 
     constructor(public sharkdPath: string) {
         this.id = _nextSharkdId++;
-        console.log(`spawning ${sharkdPath} from cwd=${process.cwd} win32=${platformWin32}`);
+        console.log(`spawning ${sharkdPath} from cwd=${process.cwd()} win32=${platformWin32}`);
         this._proc = spawn(sharkdPath, ['-'], {
             // todo do we need to provide that? cwd: '/tmp/',
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -240,7 +240,7 @@ export class WebsharkView implements vscode.Disposable {
         treeViewProvider.updateNode(this._treeNode, true, true);
 
         this._pendingResponses.push({ startTime: Date.now(), id: -1 });
-        this._sharkd.sendRequest(`{"req":"load","file":"${uri.fsPath}"}`);
+        this._sharkd.sendRequestObj({ req: 'load', file: uri.fsPath });
         /*this._pendingResponses.push({ startTime: Date.now(), id: -2 });
         this._sharkd.stdin?.write(`{"req":"dumpconf"}\n`);*/
 

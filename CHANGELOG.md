@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.3]
+- yet another win32 fix. first working win32 version.
+
 ## [0.3.2]
 - win32 related fixes (\r\n parsing, removed /tmp as cwd,...)
 - 'Hello in child' might be fragmented.
