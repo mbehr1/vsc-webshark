@@ -8,8 +8,12 @@ import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { TreeViewProvider, TreeViewNode } from './treeViewProvider';
-
 let _nextSharkdId = 1;
+
+const platformWin32: boolean = process.platform === "win32";
+const platformNewline: string = platformWin32 ? "\r\n" : "\n"; // what a mess... sharkd on win (or cmd) translates newlines into \r\n
+const platformDoubleNewLine = platformWin32 ? "\r\n\r\n" : "\n\n"; // only needed to parse output, input is accepted with single newline
+const platformDoubleNewLineLen = platformDoubleNewLine.length;
 
 export class SharkdProcess implements vscode.Disposable {
     public id: number;
@@ -22,10 +26,13 @@ export class SharkdProcess implements vscode.Disposable {
 
     public _onDataFunction: null | ((objs: any[]) => void) = null;
 
+    private _notReadyErrData: string = '';
+
     constructor(public sharkdPath: string) {
         this.id = _nextSharkdId++;
+        console.log(`spawning ${sharkdPath} from cwd=${process.cwd} win32=${platformWin32}`);
         this._proc = spawn(sharkdPath, ['-'], {
-            cwd: '/tmp/',
+            // todo do we need to provide that? cwd: '/tmp/',
             stdio: ['pipe', 'pipe', 'pipe'],
             shell: true
         });
@@ -47,10 +54,13 @@ export class SharkdProcess implements vscode.Disposable {
         this._proc.stderr?.on('data', (data) => {
             const strData: string = data.toString();
             if (!this._ready) {
-                this._ready = strData.startsWith('Hello in child.\n');
-                console.log(`SharkdProcess(${this.id}) ready: '${this._ready}', data='${strData}'`);
-                this._readyPromises.forEach((p) => p(this._ready));
-                this._readyPromises = [];
+                this._notReadyErrData = this._notReadyErrData.concat(strData);
+                this._ready = this._notReadyErrData.indexOf(`Hello in child.${platformNewline}`) >= 0;
+                if (this._ready) {
+                    console.log(`SharkdProcess(${this.id}) ready: '${this._ready}', data='${this._notReadyErrData}'`);
+                    this._readyPromises.forEach((p) => p(this._ready));
+                    this._readyPromises = [];
+                } // todo add timeout and promise(false)
             } else {
                 console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
             }
@@ -70,7 +80,7 @@ export class SharkdProcess implements vscode.Disposable {
             do {
                 gotObj = false;
                 if (this._partialResponse) {
-                    const crPos = this._partialResponse.indexOf('\n\n', undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
+                    const crPos = this._partialResponse.indexOf(platformDoubleNewLine, undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
                     if (crPos === 0) {
                         console.log(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length} resp=${this._partialResponse.toString()}`);
                         if (this._partialResponse.length > 1) {
@@ -84,9 +94,9 @@ export class SharkdProcess implements vscode.Disposable {
                         try {
                             let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
                             jsonObjs.push(jsonObj);
-                            if (crPos > 0 && crPos < this._partialResponse.length - 2) {
+                            if (crPos > 0 && crPos < this._partialResponse.length - platformDoubleNewLineLen) {
                                 console.log(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
-                                this._partialResponse = this._partialResponse?.slice(crPos + 2);
+                                this._partialResponse = this._partialResponse?.slice(crPos + platformDoubleNewLineLen);
                                 gotObj = true;
                             } else {
                                 this._partialResponse = null;

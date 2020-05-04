@@ -2,6 +2,10 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.2]
+- win32 related fixes (\r\n parsing, removed /tmp as cwd,...)
+- 'Hello in child' might be fragmented.
+
 ## [0.3.1]
 - added info about missing sharkd binary on windows installations. Investigating...
 - First bits+pieces for events explorer. Not finished yet.

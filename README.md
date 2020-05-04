@@ -6,7 +6,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
 
 **Note:** It's acts mainly as a UI to a local wireshark installation. So wireshark (incl sharkd) need to be locally installed.
 
-**Note:** Currently I don't find "sharkd" as part of the Wireshark windows installer packages even though BUILD_sharkd in their github seems set to on. Any info appreciated!
+**Note:** Currently I do find "sharkd" for windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
 
 ## Features
 
