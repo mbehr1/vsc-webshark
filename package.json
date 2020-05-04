@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -59,6 +59,10 @@
 										"type": "string",
 										"description": "Wireshark sharkd column expression like %Yut or <displayfilter>:<occurrence>. Values can be used for label or for timeSync feature."
 									}
+								},
+								"conversionFunction": {
+									"type": "string",
+									"description": "Optional parameter that need to be a proper JS function. It gets passed the 'values' array as argument and needs to return a string that is used as timeSync value. E.g. \"return values.join(':');\". If not provided values with be concated by ' '."
 								},
 								"label": {
 									"type": "string",

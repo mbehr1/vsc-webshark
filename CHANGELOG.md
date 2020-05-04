@@ -2,6 +2,11 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.5]
+- added configuration setting conversionFunction that allows to specify a function for timeSync value conversion. This was needed as the displayFilter that sharkd supports for columns don't offer e.g. slicing [...]. So it's useful to convert for e.g. needed hexdump conversion (0x0000 vs 00 00 vs 0x00 0x00...). 
+- removed automatic toLower on timeSync value. If you want it back use "return values.join(' ').toLower();" as conversion function.
+- added event label parsing. Still missing sorting by timestamp and indenting by level. 
+
 ## [0.3.4]
 - timeSync values will be in lower case (as defined) and if multiple values are provided they will be concated with ' '.
 

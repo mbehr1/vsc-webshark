@@ -675,20 +675,28 @@ export class WebsharkView implements vscode.Disposable {
                     }
                     this.sharkd2Request(req, (res: any) => {
                         console.log(`WebsharkView sharkd2 scan event #'${i}' got ${res.length} frames  res=${JSON.stringify(res).slice(0, 1000)}`);
+                        // by default we convert values by concating with ' '
+                        var convValuesFunction: Function = (arr: Array<string>) => { return arr.join(' '); };
+                        // but we can specify that as well:
+                        if (event.conversionFunction !== undefined) {
+                            convValuesFunction = Function("values", event.conversionFunction);
+                            console.warn(` using conversionFunction = '${convValuesFunction}'`);
+                        }
+
                         for (let e = 0; e < res.length; ++e) {
                             try {
                                 const frame = res[e];
                                 if (event.level > 0) {
                                     // determine label:
-                                    let label: string = frame.c.slice(1).join(' '); // todo proper parsing
+                                    let label: string = event.label !== undefined ? stringFormat(event.label, frame.c.slice(1)) : frame.c[1];
                                     console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
                                     // need to sort them by frame num and indent by level
                                     this._eventsNode.children.push(new TreeViewNode(label, this._eventsNode));
                                 }
                                 if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
                                     // store as timeSync
-                                    let timeSyncValue: string = frame.c.length > 2 ? (frame.c.slice(2).join(' ')) : frame.c[1];
-                                    timeSyncValue = timeSyncValue.toLowerCase();
+                                    let timeSyncValue: string = frame.c.length > 2 ? (convValuesFunction(frame.c.slice(2)) /*frame.c.slice(2).join(' ')*/) : frame.c[1];
+                                    // not needed with conversionFunction timeSyncValue = timeSyncValue.toLowerCase();
                                     let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
                                     console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
                                     this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
@@ -712,4 +720,13 @@ export class WebsharkView implements vscode.Disposable {
         }
 
     }
+}
+
+function stringFormat(str: string, args: Array<string>): string {
+    return str.replace(/{(\d+)}/g, function (match, number) {
+        return typeof args[number] !== 'undefined'
+            ? args[number]
+            : match
+            ;
+    });
 }
