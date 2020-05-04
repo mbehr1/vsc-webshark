@@ -49,8 +49,11 @@ export function activate(context: vscode.ExtensionContext) {
 	// subscribe to onDidChangeSelection todo
 	context.subscriptions.push(treeView.onDidChangeSelection(event => {
 		console.log(`${extensionId}.treeView.onDidChangeSelection(${event.selection.length} ${event.selection[0].uri})`);
-		if (event.selection.length && event.selection[0].uri) {
-			// todo (check which activeview has that uri)
+		if (event.selection.length && event.selection[0].time !== undefined) {
+			// todo (check which activeview has that uri or send to all?)
+			for (let i = 0; i < activeViews.length; ++i) {
+				activeViews[i].handleDidChangeSelectedTime({ time: new Date(event.selection[0].time.valueOf() + activeViews[i].timeAdjustMs), uri: vscode.Uri.parse('vsc-webshark:///todo') }); // need a different uri for now
+			}
 		}
 	}));
 

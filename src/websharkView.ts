@@ -219,6 +219,9 @@ export class WebsharkView implements vscode.Disposable {
     private _activeFilter: string | undefined;
     private _timeIntsBySec: any; // the object returned on last 'intervals' request.
     private _timeAdjustMs: number = 0;
+
+    get timeAdjustMs(): number { return this._timeAdjustMs; }; // readonly
+
     public gotTimeSyncEvents: boolean = false; // we reacted to time sync events ( so manually adjusting doesn't make sense as it will change back autom.)
 
     // time sync support:
@@ -652,6 +655,10 @@ export class WebsharkView implements vscode.Disposable {
         this._eventsNode.children = [];
         this._treeViewProvider.updateNode(this._eventsNode);
 
+        // as we scan with multiple scans/filter for the events but want them sorted by frame-number (=time)
+        // we push them to here and sort into the eventsNode.children at the end
+        let eventsUnsorted: { num: number, level: number, node: TreeViewNode }[] = [];
+
         // do we have events defined?
         const events = vscode.workspace.getConfiguration().get<Array<any>>("vsc-webshark.events");
         console.log(`WebsharkView.scanForEvents have ${events?.length} events`);
@@ -689,9 +696,9 @@ export class WebsharkView implements vscode.Disposable {
                                 if (event.level > 0) {
                                     // determine label:
                                     let label: string = event.label !== undefined ? stringFormat(event.label, frame.c.slice(1)) : frame.c[1];
-                                    console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
-                                    // need to sort them by frame num and indent by level
-                                    this._eventsNode.children.push(new TreeViewNode(label, this._eventsNode));
+                                    const node = new TreeViewNode(label, this._eventsNode);
+                                    node.time = new Date(frame.c[0]); // without timeadjust. we do this onDidChangeSelection... for now
+                                    eventsUnsorted.push({ num: frame.num, level: event.level, node: node });
                                 }
                                 if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
                                     // store as timeSync
@@ -708,6 +715,29 @@ export class WebsharkView implements vscode.Disposable {
                         console.log(`WebsharkView sharkd2 scan event #'${i}' finished got ${res.length} frames`);
                         // todo move at the end... use proper Promise and wait for all to finish...
                         if (i === events.length - 1) {
+                            // now sort the eventsUnsorted by num first:
+                            eventsUnsorted.sort((a, b) => a.num - b.num);
+                            // then move to proper level:
+
+                            const getParent = (level: number): TreeViewNode => {
+                                if (level === 1) {
+                                    return this._eventsNode;
+                                } else {
+                                    const parent = getParent(level - 1);
+                                    if (parent.children.length === 0) {
+                                        // create a dummy and return that one:
+                                        parent.children.push(new TreeViewNode(`(no parent level ${level - 1} event)`, parent));
+                                    }
+                                    return parent.children[parent.children.length - 1];
+                                }
+                            };
+
+                            for (let j = 0; j < eventsUnsorted.length; ++j) {
+                                const ev = eventsUnsorted[j];
+                                const parentNode = getParent(ev.level);
+                                parentNode.children.push(ev.node);
+                            }
+
                             vscode.window.showInformationMessage(`finished scanning for events. found ${this._eventsNode.children.length}`); // put into status bar item todo
                             this._treeViewProvider.updateNode(this._eventsNode);
                             this.broadcastTimeSyncs();

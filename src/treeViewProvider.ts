@@ -22,6 +22,7 @@ export class TreeViewNode {
     children: TreeViewNode[] = [];
     contextValue?: string;
     command?: vscode.Command;
+    time?: Date;
 
     constructor(label: string, parent: TreeViewNode | null) {
         this.id = createUniqueId();
