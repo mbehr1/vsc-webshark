@@ -680,14 +680,15 @@ export class WebsharkView implements vscode.Disposable {
                                 const frame = res[e];
                                 if (event.level > 0) {
                                     // determine label:
-                                    let label: string = frame.c[1]; // todo
+                                    let label: string = frame.c.slice(1).join(' '); // todo proper parsing
                                     console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
                                     // need to sort them by frame num and indent by level
                                     this._eventsNode.children.push(new TreeViewNode(label, this._eventsNode));
                                 }
                                 if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
                                     // store as timeSync
-                                    let timeSyncValue: string = frame.c.length > 2 ? frame.c[2] : frame.c[1]; // todo for multiple?
+                                    let timeSyncValue: string = frame.c.length > 2 ? (frame.c.slice(2).join(' ')) : frame.c[1];
+                                    timeSyncValue = timeSyncValue.toLowerCase();
                                     let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
                                     console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
                                     this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });

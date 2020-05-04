@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.4]
+- timeSync values will be in lower case (as defined) and if multiple values are provided they will be concated with ' '.
+
 ## [0.3.3]
 - yet another win32 fix. first working win32 version.
 
