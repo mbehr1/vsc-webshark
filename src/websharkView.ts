@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { TreeViewProvider, TreeViewNode } from './treeViewProvider';
 
 let _nextSharkdId = 1;
 
@@ -140,7 +141,7 @@ export class SharkdProcess implements vscode.Disposable {
 }
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
-    constructor(private reporter: TelemetryReporter, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
+    constructor(private reporter: TelemetryReporter, private treeViewProvider: TreeViewProvider, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
 
     }
     async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
@@ -153,7 +154,7 @@ export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
                 const sharkd = new SharkdProcess(this.sharkdPath);
                 sharkd.ready().then((ready) => {
                     if (ready) {
-                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this._onDidChangeSelectedTime, uri, sharkd, this.activeViews, this.callOnDispose));
+                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this.treeViewProvider, this._onDidChangeSelectedTime, uri, sharkd, this.activeViews, this.callOnDispose));
                         if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
                     } else {
                         vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
@@ -213,7 +214,20 @@ export class WebsharkView implements vscode.Disposable {
     // time sync support:
     private _timeSyncEvents: TimeSyncData[] = [];
 
-    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
+    // tree view support:
+    private _treeViewProvider: TreeViewProvider;
+    private _treeNode: TreeViewNode;
+    private _eventsNode: TreeViewNode;
+
+    constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private treeViewProvider: TreeViewProvider, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
+
+        this._treeViewProvider = treeViewProvider;
+        this._treeNode = new TreeViewNode(path.basename(uri.fsPath), null);
+        this._eventsNode = new TreeViewNode('events', this._treeNode);
+        this._treeNode.children.push(this._eventsNode);
+
+        treeViewProvider.treeRootNodes.push(this._treeNode);
+        treeViewProvider.updateNode(this._treeNode, true, true);
 
         this._pendingResponses.push({ startTime: Date.now(), id: -1 });
         this._sharkd.sendRequest(`{"req":"load","file":"${uri.fsPath}"}`);
@@ -409,6 +423,10 @@ export class WebsharkView implements vscode.Disposable {
             this.panel = undefined;
         }
         this._sharkd2.dispose();
+
+        const idx = this._treeViewProvider.treeRootNodes.indexOf(this._treeNode);
+        if (idx >= 0) { this._treeViewProvider.treeRootNodes.splice(idx, 1); this._treeViewProvider.updateNode(null); }
+
         this.callOnDispose(this);
     }
 
@@ -621,6 +639,8 @@ export class WebsharkView implements vscode.Disposable {
     async scanForEvents() {
 
         this._timeSyncEvents = [];
+        this._eventsNode.children = [];
+        this._treeViewProvider.updateNode(this._eventsNode);
 
         // do we have events defined?
         const events = vscode.workspace.getConfiguration().get<Array<any>>("vsc-webshark.events");
@@ -646,19 +666,32 @@ export class WebsharkView implements vscode.Disposable {
                     this.sharkd2Request(req, (res: any) => {
                         console.log(`WebsharkView sharkd2 scan event #'${i}' got ${res.length} frames  res=${JSON.stringify(res).slice(0, 1000)}`);
                         for (let e = 0; e < res.length; ++e) {
-                            const frame = res[e];
-                            if (event.level > 0) {
-                                // determine label:
-                                let label: string = frame.c[1]; // todo
-                                console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
+                            try {
+                                const frame = res[e];
+                                if (event.level > 0) {
+                                    // determine label:
+                                    let label: string = frame.c[1]; // todo
+                                    console.log(` todo need to add frame #${frame.num} to level ${event.level} with label '${label}'`);
+                                    // need to sort them by frame num and indent by level
+                                    this._eventsNode.children.push(new TreeViewNode(label, this._eventsNode));
+                                }
+                                if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
+                                    // store as timeSync
+                                    let timeSyncValue: string = frame.c.length > 2 ? frame.c[2] : frame.c[1]; // todo for multiple?
+                                    let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
+                                    console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
+                                    this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
+                                }
+                            } catch (err) {
+                                console.error(`WebsharkView sharkd2 scan event #'${i}' got error '${err}' with idx '${e}'`);
                             }
-                            if (event.timeSyncId.length > 0 && event.timeSyncPrio > 0) {
-                                // store as timeSync
-                                let timeSyncValue: string = frame.c.length > 2 ? frame.c[2] : frame.c[1]; // todo for multiple?
-                                let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
-                                console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
-                                this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
-                            }
+                        }
+                        console.log(`WebsharkView sharkd2 scan event #'${i}' finished got ${res.length} frames`);
+                        // todo move at the end... use proper Promise and wait for all to finish...
+                        if (i === events.length - 1) {
+                            vscode.window.showInformationMessage(`finished scanning for events. found ${this._eventsNode.children.length}`); // put into status bar item todo
+                            this._treeViewProvider.updateNode(this._eventsNode);
+                            this.broadcastTimeSyncs();
                         }
                     });
                 } else {
@@ -666,7 +699,6 @@ export class WebsharkView implements vscode.Disposable {
                 }
             }
         }
-        vscode.window.showInformationMessage('finished scanning for events'); // put into status bar item todo
-        this.broadcastTimeSyncs();
+
     }
 }

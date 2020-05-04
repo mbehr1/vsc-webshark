@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -96,7 +96,7 @@
 			"mbehr1Logs": [
 				{
 					"id": "websharkEventsExplorer",
-					"name": "events explorer"
+					"name": "webshark events explorer"
 				}
 			]
 		}

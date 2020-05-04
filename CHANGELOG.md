@@ -2,6 +2,10 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.3.1]
+- added info about missing sharkd binary on windows installations. Investigating...
+- First bits+pieces for events explorer. Not finished yet.
+
 ## [0.3.0]
 - time sync part 3: timeSync events. broadcasted and on reception adjust time (not reflected in view but for reveal)
 - event definition is prepared for events explorer tree view (label, level)

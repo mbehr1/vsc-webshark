@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData } from './websharkView';
 import { statSync } from 'fs';
+import { TreeViewNode, TreeViewProvider } from './treeViewProvider';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
@@ -21,6 +22,7 @@ function fileExists(filePath: string) {
 const _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData> = new vscode.EventEmitter<SelectedTimeData>();
 let _didChangeSelectedTimeSubscriptions: Array<vscode.Disposable> = new Array<vscode.Disposable>();
 const activeViews: WebsharkView[] = [];
+let treeView: vscode.TreeView<TreeViewNode> | undefined = undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -36,6 +38,21 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(reporter);
 		reporter?.sendTelemetryEvent('activate');
 	}
+
+	// create treeview
+	const treeDataProvider = new TreeViewProvider();
+	// todo move to TreeViewprovider?
+	treeView = vscode.window.createTreeView('websharkEventsExplorer', { treeDataProvider: treeDataProvider });
+	treeDataProvider.treeView = treeView; // the provider should be able to reveal as well
+	context.subscriptions.push(treeView);
+	context.subscriptions.push(treeDataProvider);
+	// subscribe to onDidChangeSelection todo
+	context.subscriptions.push(treeView.onDidChangeSelection(event => {
+		console.log(`${extensionId}.treeView.onDidChangeSelection(${event.selection.length} ${event.selection[0].uri})`);
+		if (event.selection.length && event.selection[0].uri) {
+			// todo (check which activeview has that uri)
+		}
+	}));
 
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
@@ -56,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
 							const sharkd = new SharkdProcess(_sharkdPath);
 							sharkd.ready().then((ready) => {
 								if (ready) {
-									context.subscriptions.push(new WebsharkView(undefined, context, _onDidChangeSelectedTime, uri, sharkd, activeViews, (r) => {
+									context.subscriptions.push(new WebsharkView(undefined, context, treeDataProvider, _onDidChangeSelectedTime, uri, sharkd, activeViews, (r) => {
 										const idx = activeViews.indexOf(r);
 										console.log(` openFile dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
 										if (idx >= 0) {
@@ -77,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vsc-webshark',
-		new WebsharkViewSerializer(reporter, _onDidChangeSelectedTime, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
+		new WebsharkViewSerializer(reporter, treeDataProvider, _onDidChangeSelectedTime, <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath")),
 			context, activeViews, (r) => {
 				const idx = activeViews.indexOf(r);
 				console.log(` openSerialized dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
