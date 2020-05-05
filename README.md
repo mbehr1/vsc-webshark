@@ -8,11 +8,11 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
 
 **Note:** The **time-sync** feature works well with [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.smart-log.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) **smart-log** extension and [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.dlt-logs.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs) for DLT (diagnostic log and trace) files.
 
-**Note:** It's acts mainly as a UI to a local wireshark installation. So wireshark (incl **sharkd**) need to be locally installed.
+**Note:** It's acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
 
-**Note:** Currently I do find "sharkd" for windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
+**Note:** Currently I do find "sharkd" for Windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
 
-**Note:** Under linux the default Debian package doesn't install "sharkd". If you install from source (git clone https://github.com/wireshark/wireshark; cd wireshark; mkdir build; cd build; cmake -DBUILD_wireshark=OFF ..; ./run/sharkd -   <- should build sharkd and print a 'Hello from client'. The path to this binary should be sufficient. Caution might be needed on the plugin directory location. You can keep the default option -DBUILD_wireshark=ON as well but its not needed. Check the list of compile dependencies (e.g. glib-2.0-dev libpcap-dev libgcrypt20-dev lib-c-ares-dev liblua5.3-dev lua5.3 )
+**Note:** Under Linux&reg; the default Debian package doesn't install "sharkd". If you install from source (git clone https://github.com/wireshark/wireshark; cd wireshark; mkdir build; cd build; cmake -DBUILD_wireshark=OFF .. ; make ; ./run/sharkd -   <- should build sharkd and print a 'Hello from client'. The path to this binary should be sufficient. Caution might be needed on the plugin directory location. You can keep the default option -DBUILD_wireshark=ON as well but its not needed. Check the list of compile dependencies (e.g. glib-2.0-dev libpcap-dev libgcrypt20-dev lib-c-ares-dev liblua5.3-dev lua5.3 )
 
 ## Features
 
@@ -39,11 +39,21 @@ The extension uses telemetry with one event (`open file`, errorcode as parameter
 This extension contributes the following settings:
 
 * `vsc-webshark.sharkdFullPath`: Specifies the absolute path incl filename to the sharkd binary. This needs to be set after installation.
-* `vsc-webshark.events`: Defined **events* used for time-sync event detection (and for tree-view later).
+* `vsc-webshark.events`: Defined **events** used for time-sync event detection.
+  * Tree-view events need to have:
+    * `level` > 0 and
+    * `label` defined. The label can contain {0} for the %i info column or {1}, {2} ... replacements for the values. 
+    * `displayFilter`: any Wireshark display filter expression like "tcp" or "upd or http.request"
+    * `values`: array of strings referring to Wireshark column/display filters like %t or http.request:0 (take care about the :0. It's not the slice operator but the occurrence if that expression is defined by multiple protocols in the proto tree). Values can be referred to from label via {1..n}.
+* Time-sync events additionally have (level and label optional):
+  * `timeSyncId` providing the id for the time-sync event
+  * `timeSyncPrio` defining the prio of this event. Other documents use the lowest value (=highest prio) to define which events to use for time adjustment (so whether to use just broadcast their own defined ones or in case of a timeSyncId and timeSyncValue match to adjust the time).
+  * `conversionFunction` can be used to modify the time-sync value calculated for that event. Needs to be a JS function returning a string. If not used the values are concated by ' ' and if no values defined by info column.
 
 ## Known Issues
 
 Little testing done yet.
+Little documentation.
 
 * layout not adapting height.
 * Scheme colors/options only partially used. Might not be readable/useable in some settings. I used a dark scheme during development only.
@@ -74,3 +84,4 @@ node-webshark
  - Source: https://bitbucket.org/jwzawadzki/webshark/src/master/ 
  - License: GPL-2.0
 
+Linux&reg; is the registered trademark of Linus Torvalds in the U.S. and other countries.
