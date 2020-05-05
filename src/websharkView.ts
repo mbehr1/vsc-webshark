@@ -467,15 +467,15 @@ export class WebsharkView implements vscode.Disposable {
     }
 
     updateTimeIndices(filter: string | undefined) {
-        console.log(`WebsharkView.updateTimeIndices(filter=${filter})`);
+        console.log(`WebsharkView.updateTimeIndices(filter='${filter}')`);
         let req: any = { req: 'intervals', interval: 1000 /* sec */ }; // todo if this ever gets too large we might have to add hours as interims.
-        if (filter) { req.filter = filter; }
+        if (filter && filter.length > 0) { req.filter = filter; }
         this.sharkd2Request(req, (res: any) => {
             console.log(`WebsharkView.updateTimeIndices got res for 'intervals' res=${JSON.stringify(res).slice(0, 100)}`);
             console.log(`WebsharkView.updateTimeIndices  frames=${res.frames} last=${res.last} #intervals=${res.intervals.length}`);
             this._timeIntsBySec = res;
             // we add the filter info:
-            if (req.filter) { this._timeIntsBySec.filter = req.filter; }
+            if (req.filter && req.filter.length > 0) { this._timeIntsBySec.filter = req.filter; }
             vscode.window.showInformationMessage('time indices available'); // put into status bar item todo
         });
     }
@@ -484,7 +484,9 @@ export class WebsharkView implements vscode.Disposable {
         // we return null, if the time filter doesn't match yet... (todo optimize this)
         console.log(`WebsharkView.getFrameIdxForTime(${time.toUTCString()}.${time.valueOf() % 1000})...`);
         return new Promise((resolve) => {
-            if (!this._timeIntsBySec || this._timeIntsBySec.filter !== this._activeFilter) { resolve(null); return; }
+            const activeFilterStr: string = this._activeFilter ? this._activeFilter : '';
+            const timeIntsFilterStr: string = this._timeIntsBySec && this._timeIntsBySec.filter ? this._timeIntsBySec.filter : '';
+            if (!this._timeIntsBySec || (activeFilterStr !== timeIntsFilterStr)) { resolve(null); return; }
             if (!this._firstFrameTime || !this._fileStatus) { resolve(null); return; }
             const timeVal = time.valueOf();
             const firstFrameTimeVal = this._firstFrameTime.valueOf() + this._timeAdjustMs;
@@ -551,7 +553,7 @@ export class WebsharkView implements vscode.Disposable {
             if (ev.time.valueOf() > 0) {
                 if (this._firstFrameTime !== undefined) {
                     this.getFrameIdxForTime(new Date(ev.time.valueOf())).then((idx) => {
-                        console.warn(`WebsharkView.updateTimeIndices got idx=${idx} for ${ev.time.toUTCString()}`);
+                        console.warn(`WebsharkView.handleDidChangeSelectedTime got idx=${idx} for ${ev.time.toUTCString()}`);
                         if (idx) { this.postMsgOnceAlive({ command: "reveal frameIdx", frameIdx: idx }); }
                     });
                 }

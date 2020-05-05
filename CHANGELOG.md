@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.4.2]
+- Fixed tree view selection not working if no filter was set.
+
 ## [0.4.1]
 - Fixed number of events found messages being wrong.
 
