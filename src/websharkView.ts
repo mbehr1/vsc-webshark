@@ -738,7 +738,7 @@ export class WebsharkView implements vscode.Disposable {
                                 parentNode.children.push(ev.node);
                             }
 
-                            vscode.window.showInformationMessage(`finished scanning for events. found ${this._eventsNode.children.length}`); // put into status bar item todo
+                            vscode.window.showInformationMessage(`finished scanning for events. found ${eventsUnsorted.length}`); // put into status bar item todo
                             this._treeViewProvider.updateNode(this._eventsNode);
                             this.broadcastTimeSyncs();
                         }

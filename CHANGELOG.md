@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.4.1]
+- Fixed number of events found messages being wrong.
+
 ## [0.4.0]
 - added sorting events by timestamp and indenting by level.
 - selecting an event reveals an event close to it by time.
