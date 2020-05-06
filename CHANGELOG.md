@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.5.0]
+- Add "adjustTime" (via context menu on a selected frame) implementation including a "sync to last received time event".
+
 ## [0.4.2]
 - Fixed tree view selection not working if no filter was set.
 

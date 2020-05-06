@@ -222,9 +222,9 @@ export class WebsharkView implements vscode.Disposable {
 
     get timeAdjustMs(): number { return this._timeAdjustMs; }; // readonly
 
-    public gotTimeSyncEvents: boolean = false; // we reacted to time sync events ( so manually adjusting doesn't make sense as it will change back autom.)
-
     // time sync support:
+    public gotTimeSyncEvents: boolean = false; // we reacted to time sync events ( so manually adjusting doesn't make sense as it will change back autom.)
+    lastSelectedTimeEv: Date | undefined; // the last received time event that might have been used to reveal our line. used for adjustTime on last event feature.
     private _timeSyncEvents: TimeSyncData[] = [];
 
     // tree view support:
@@ -336,6 +336,11 @@ export class WebsharkView implements vscode.Disposable {
                         this._onDidChangeSelectedTime.fire({ time: time, uri: this.uri });
                     } catch (err) {
                         console.warn(`WebsharkView.onDidReceiveMessage 'time update' got err=${err}`, e);
+                    }
+                    break;
+                case 'adjust time req':
+                    {
+                        this.adjustTimeReq(e);
                     }
                     break;
                 case 'set filter':
@@ -551,6 +556,7 @@ export class WebsharkView implements vscode.Disposable {
         if (this.uri.toString() !== ev.uri.toString()) { // avoid reacting on our own events...
             console.log(`WebsharkView.handleDidChangeSelectedTime got ev from uri=${ev.uri.toString()}`);
             if (ev.time.valueOf() > 0) {
+                this.lastSelectedTimeEv = ev.time;
                 if (this._firstFrameTime !== undefined) {
                     this.getFrameIdxForTime(new Date(ev.time.valueOf())).then((idx) => {
                         console.warn(`WebsharkView.handleDidChangeSelectedTime got idx=${idx} for ${ev.time.toUTCString()}`);
@@ -751,6 +757,39 @@ export class WebsharkView implements vscode.Disposable {
             }
         }
 
+    }
+
+    async adjustTimeReq(e: any) {
+        let curAdjustMs: number = this._timeAdjustMs;
+        const time: Date = new Date(new Date(e.time).valueOf() + curAdjustMs);
+        console.log(`WebsharkView 'adjust time req' frame=${e.frame} time=${time.toUTCString()}`);
+        // check first whether we shall use the last received time event?
+        // we do this only if we didn't receive any timeSyncs (assuming that the next one will auto update anyhow so it makes no sense to change man.)
+        let doManualPrompt = true;
+        if (!this.gotTimeSyncEvents && this.lastSelectedTimeEv) {
+            if (time) {
+                // calc adjust value:
+                let selTimeAdjustValue = this.lastSelectedTimeEv.valueOf() - time.valueOf();
+                let response: string | undefined =
+                    await vscode.window.showInformationMessage(`Adjust based on last received time event (adjust by ${selTimeAdjustValue / 1000} secs)?`,
+                        { modal: true }, "yes", "no");
+                if (response === "yes") {
+                    doManualPrompt = false;
+                    this.adjustTime(selTimeAdjustValue);
+                } else if (!response) {
+                    doManualPrompt = false;
+                }
+            }
+
+        }
+        if (doManualPrompt) {
+            vscode.window.showInputBox({ prompt: `Enter new time adjust in secs (cur = ${curAdjustMs / 1000}):`, value: (curAdjustMs / 1000).toString() }).then(async (value: string | undefined) => {
+                if (value) {
+                    let newAdjustMs: number = (+value) * 1000;
+                    this.adjustTime(newAdjustMs - curAdjustMs); // here we want the entered value to become the new abs value
+                }
+            });
+        }
     }
 }
 

@@ -21,15 +21,16 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
 - **Time sync** feature.
   - Calculates time for each frame based on timestamp and broadcasts the time to the other **Time sync** extensions so that they reveal the fitting time ranges.
   - Automatic time-sync based on freely-configurable events that get broadcasted to other extensions so that time shifts between documents are adjusted automatically. (todo add example)
+  - Manual offset for the time via context menu item *adjust-time...*.
+  - If a time was received already the *adjust-time...* will propose to adjust/sync the selected line to the received one.
 - Tree-view with freely-configurable events based on display filter syntax allows to provide a kind of structure of the frames captured. Selecting an event reveals the frames close to that reception time (even the frames are not part of the current display filter).
 
 The extension uses telemetry with one event (`open file`, errorcode as parameter) if telemetry is activated within your general configuration.
 
 ## Planned features
 
-- Manual offset for the time via context menu item *adjust-time...*.
-- If a time was received already the *adjust-time...* will propose to adjust/sync that line to the selected one.
-  
+- make it look nicer / more compliant to schema.
+
 ## Requirements
 
 **sharkd** binary from Wireshark needs to be locally installed. If installed via 'brew' on OSX its installed by default. For Win32/64 and Linux see notes above.

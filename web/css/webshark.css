@@ -217,3 +217,25 @@ line.seq_line
 .c3-area {
 	opacity: 1 !important;
 }
+
+.menu {
+	width: 200px;
+	box-shadow: 0 1px 1px 1px solid var(--vscode-contrastBorder);
+	position: fixed;
+	display: none;
+	transition: 0.2s display ease-in;
+}
+.menu-options {
+	list-style: none;
+	padding: 10px 0;
+	z-index: 1;
+	background: var(--vscode-settings-textInputBackground);
+} 
+.menu-option {
+	font-family: var(--vscode-editor-font-family);
+	font-weight: var(--vscode-editor-font-weight);
+	font-size: var(--vscode-editor-font-size);
+	z-index: 1;
+	padding: 1px 1px 1px 1px;
+	cursor: pointer;
+}

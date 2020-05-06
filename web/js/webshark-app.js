@@ -351,6 +351,26 @@
 			}
 		}
 
+
+		function adjustTime(fnum) {
+			console.log('adjustTime on fnum#' + fnum);
+			webshark_json_get(
+				{
+					req: 'frames',
+					skip: -1 + fnum,
+					limit: 1,
+					column0: g_ws_absTimeColIdx
+				},
+				(data) => {
+					//console.log('got data=' + JSON.stringify(data));
+					const time = data[0]['c'][0];
+					console.log('sending adjust time req time=' + time);
+					vscode.postMessage({ message: "adjust time req", time: time, frame: data[0]['num'] });
+				});
+
+
+		}
+
 		function webshark_params_to_uri(params) {
 			var req = null;
 
@@ -448,7 +468,7 @@
 			function () {
 				if (http.readyState == 4 && http.status == 200) {
 					debug(3, " webshark_json_get(" + req + ") got 200 len = " + http.responseText.length);
-
+	
 					var js = JSON.parse(http.responseText);
 					cb(js);
 				}
@@ -725,6 +745,7 @@
 		exports.webshark_load_frame = webshark_load_frame;
 		exports.popup_on_click_a = popup_on_click_a;
 		exports.dblClickTr = dblClickTr;
+		exports.adjustTime = adjustTime;
 
 		exports.dom_create_label = dom_create_label;
 		exports.dom_set_child = dom_set_child;
@@ -1448,7 +1469,16 @@
 			tr.data_ws_frame = fnum;
 			tr.addEventListener("click", window.webshark.webshark_load_frame.bind(null, fnum, false));
 			tr.addEventListener('dblclick', window.webshark.dblClickTr);
-
+			tr.addEventListener('contextmenu', ev => {
+				ev.preventDefault();
+				// window.webshark.contextMenuTr);
+				const contextMenuTr = document.getElementById('contextMenuTr');
+				contextMenuTr.style.left = `${ev.pageX}px`;
+				contextMenuTr.style.top = `${ev.pageY}px`;
+				contextMenuTr.style.display = 'block';
+				contextMenuTr.setAttribute('menuTargetFnum', fnum);
+				return false;
+			});
 
 			return tr;
 		}
@@ -1466,7 +1496,20 @@
 			});
 
 			this.cluster.options.callbacks.createHTML = webshark_create_frame_row_html;
-		}
+
+			// context menu support:
+			const contextMenuTr = document.getElementById('contextMenuTr');
+			window.addEventListener('click', e => {
+				if (contextMenuTr.style.display === 'block') {
+					contextMenuTr.style.display = 'none';
+				}
+			});
+			const menuOption = document.getElementById('contextMenuTrAdjustTime');
+			menuOption.addEventListener('click', e => {
+				console.log('adjustTime clicked fnum' + contextMenuTr.getAttribute('menuTargetFnum'));
+				window.webshark.adjustTime(parseInt(contextMenuTr.getAttribute('menuTargetFnum')));
+			});
+		};
 
 		WSPacketList.prototype.setColumns = function (cols, widths) {
 			/* real header */

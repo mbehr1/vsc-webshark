@@ -448,6 +448,11 @@
 					console.error('eventListener message got error ' + err);
 				}
 			});
+
+			/*window.addEventListener('contextmenu', event => {
+				console.warn('eventListener context-menu got ' + JSON.stringify(event));
+			});*/
+
 			vscode.postMessage({ message: 'log ... addEventListener()' });
 			try {
 				g_webshark_files = new window.webshark.WSCaptureFilesTable({
@@ -738,6 +743,12 @@
 			</div>
 			<div style="clear: both;"></div>
 			<pre id='ws_bytes_dump'>Select frame</pre>
+		</div>
+
+		<div class="menu" id="contextMenuTr">
+			<ul class="menu-options">
+				<li class="menu-option" id="contextMenuTrAdjustTime">adjust time...</li>
+			</ul>
 		</div>
 
 	</div>
