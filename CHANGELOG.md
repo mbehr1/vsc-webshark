@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.5.1]
+- Delayed checkActiveExtensions a bit.
+
 ## [0.5.0]
 - Add "adjustTime" (via context menu on a selected frame) implementation including a "sync to last received time event".
 

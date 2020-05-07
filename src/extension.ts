@@ -126,6 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 		while (_didChangeSelectedTimeSubscriptions.length) { _didChangeSelectedTimeSubscriptions.pop(); }
+		let newSubs: vscode.Disposable[] = [];
 		vscode.extensions.all.forEach((value) => {
 			if (value.isActive) {
 				try {
@@ -136,7 +137,7 @@ export function activate(context: vscode.ExtensionContext) {
 						});
 						if (subscr !== undefined) {
 							console.log(` got onDidChangeSelectedTime api from ${value.id}`);
-							_didChangeSelectedTimeSubscriptions.push(subscr);
+							newSubs.push(subscr);
 						}
 					}
 				} catch (error) {
@@ -144,14 +145,17 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		});
+		_didChangeSelectedTimeSubscriptions = newSubs;
 		console.log(`${extensionId}.checkActiveExtensions: got ${_didChangeSelectedTimeSubscriptions.length} subscriptions.`);
 	};
 
 	// time-sync feature: check other extensions for api onDidChangeSelectedTime and connect to them.
 	// we do have to connect to ourself as well (as we do broadcast within pcap files)
 	context.subscriptions.push(vscode.extensions.onDidChange(() => {
-		console.log(`${extensionId}.extensions.onDidChange #ext=${vscode.extensions.all.length}`);
-		checkActiveExtensions();
+		setTimeout(() => {
+			console.log(`${extensionId}.extensions.onDidChange #ext=${vscode.extensions.all.length}`);
+			checkActiveExtensions();
+		}, 2000);
 	}));
 	setTimeout(() => {
 		checkActiveExtensions();
