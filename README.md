@@ -1,12 +1,12 @@
 # vsc-webshark README
 
-[![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.vsc-webshark.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.vsc-webshark)
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.vsc-webshark?color=green&label=vsc-webshark&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.vsc-webshark)
 
 This Visual Studio Code(tm) extension adds support to open pcap/network files.
 
 ![vsc-webshark in action](https://github.com/mbehr1/vsc-webshark/raw/master/images/vsc-webshark_1.png)
 
-**Note:** The **time-sync** feature works well with [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.smart-log.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) **smart-log** extension and [![Version](https://vsmarketplacebadge.apphb.com/version/mbehr1.dlt-logs.svg)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs) for DLT (diagnostic log and trace) files.
+**Note:** The **time-sync** feature works well with [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.smart-log?color=green&label=smart-log&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) extension and [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.dlt-logs?color=green&label=dlt-logs&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs) for DLT (diagnostic log and trace) files.
 
 **Note:** It's acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
 
@@ -29,6 +29,7 @@ The extension uses telemetry with one event (`open file`, errorcode as parameter
 
 ## Planned features
 
+- use CustomEditorProvider api to support direct open of .pcap/.pcapng files.
 - make it look nicer / more compliant to schema.
 
 ## Requirements

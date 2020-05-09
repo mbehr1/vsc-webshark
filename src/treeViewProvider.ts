@@ -3,9 +3,6 @@
  */
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-import { timingSafeEqual } from 'crypto';
 
 let _nextUniqueId: number = 1;
 function createUniqueId(): string {
