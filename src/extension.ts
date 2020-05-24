@@ -7,6 +7,7 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import { WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData } from './websharkView';
 import { statSync } from 'fs';
 import { TreeViewNode, TreeViewProvider } from './treeViewProvider';
+import { filterPcap } from './filterPcap';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
@@ -72,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
 				async (uris: vscode.Uri[] | undefined) => {
 					if (uris) {
 						uris.forEach((uri) => {
-							console.log(`open dlt got URI=${uri.toString()}`);
+							console.log(`webshark.openFile got URI=${uri.toString()}`);
 							const sharkd = new SharkdProcess(_sharkdPath);
 							sharkd.ready().then((ready) => {
 								if (ready) {
@@ -94,6 +95,20 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			);
 		}
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('webshark.filterPcap', async () => {
+		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to filter...' }).then(
+			async (uris: vscode.Uri[] | undefined) => {
+				if (uris) {
+					uris.forEach((uri) => {
+						console.log(`webshark.filterPcap got URI=${uri.toString()}`);
+						if (reporter) { reporter.sendTelemetryEvent("filter pcap", undefined, { 'err': 0 }); }
+						filterPcap(uri);
+					});
+				}
+			}
+		);
 	}));
 
 	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vsc-webshark',

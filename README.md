@@ -2,7 +2,7 @@
 
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.vsc-webshark?color=green&label=vsc-webshark&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.vsc-webshark)
 
-This Visual Studio Code(tm) extension adds support to open pcap/network files.
+This Visual Studio Code(tm) extension adds support to open pcap/network files. It allows as well to "filter" (create smaller) pcap/pcapng files with a freely-configurable, multi-steps assistant.
 
 ![vsc-webshark in action](https://github.com/mbehr1/vsc-webshark/raw/master/images/vsc-webshark_1.png)
 
@@ -16,7 +16,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
 
 ## Features
 
-- Open 'pcap'/'pcapng' network capture files. Use command "open pcap file...";
+- Open 'pcap'/'pcapng' network capture files. Use command "Open pcap file...";
 - Display filter with known syntax from wireshark
 - **Time sync** feature.
   - Calculates time for each frame based on timestamp and broadcasts the time to the other **Time sync** extensions so that they reveal the fitting time ranges.
@@ -24,23 +24,26 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files.
   - Manual offset for the time via context menu item *adjust-time...*.
   - If a time was received already the *adjust-time...* will propose to adjust/sync the selected line to the received one.
 - Tree-view with freely-configurable events based on display filter syntax allows to provide a kind of structure of the frames captured. Selecting an event reveals the frames close to that reception time (even the frames are not part of the current display filter).
+- **Filter pcap files** assistant (mainly to reduce size and ease further analysis). Use command "Filter pcap file...". This generates and executes Wireshark-tshark based filter expressions and executes them to create a new pcap files with only the filter matching frames. The steps are fully configurable. The default settings provide filter on MAC addresses, udp dest ports, tcp dest ports and an additional filter expression.
 
-The extension uses telemetry with one event (`open file`, errorcode as parameter) if telemetry is activated within your general configuration.
+The extension uses telemetry with two events (`open file`, errorcode as parameter or `filter pcap`) if telemetry is activated within your general configuration.
 
 ## Planned features
 
 - use CustomEditorProvider api to support direct open of .pcap/.pcapng files.
 - make it look nicer / more compliant to schema.
+- indicate running background tasks
 
 ## Requirements
 
-**sharkd** binary from Wireshark needs to be locally installed. If installed via 'brew' on OSX its installed by default. For Win32/64 and Linux see notes above.
+**sharkd** (and tshark) binary from Wireshark needs to be locally installed. If installed via 'brew' on OSX its installed by default. For Win32/64 and Linux see notes above.
 
 ## Extension Settings
 
 This extension contributes the following settings:
 
 * `vsc-webshark.sharkdFullPath`: Specifies the absolute path incl filename to the sharkd binary. This needs to be set after installation.
+* `vsc-webshark.tsharkFullPath`: Specifies the absolute path incl filename to the tshark binary. Defaults to 'tshark'. Needs to be set after installation if tshark is not reachable via search path.
 * `vsc-webshark.events`: Defined **events** used for time-sync event detection.
   * Tree-view events need to have:
     * `level` > 0 and
@@ -51,6 +54,8 @@ This extension contributes the following settings:
   * `timeSyncId` providing the id for the time-sync event
   * `timeSyncPrio` defining the prio of this event. Other documents use the lowest value (=highest prio) to define which events to use for time adjustment (so whether to use just broadcast their own defined ones or in case of a timeSyncId and timeSyncValue match to adjust the time).
   * `conversionFunction` can be used to modify the time-sync value calculated for that event. Needs to be a JS function returning a string. If not used the values are concated by ' ' and if no values defined by info column.
+* `vsc-webshark.filterSteps`: defines the configurable steps of the "filter pcap file..." assistant. See the default/configuration for an example. (Todo: provide a full description). Please consider using "-C <config-name>" in filterArgs and listProvider to use tshark with a minimal configuration (only the plugins activated that you do need for the used filters) to speed up processing significantly. The configuration allows to use multiple steps and chained/piped filters to start with a minimal config and use your default config with more complex plugins/filter expressions (e.g. someip/someipsd plugin) in later steps.
+
 
 ## Known Issues
 

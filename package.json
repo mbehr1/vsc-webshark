@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -24,7 +24,8 @@
 	],
 	"activationEvents": [
 		"onWebviewPanel:vsc-webshark",
-		"onCommand:webshark.openFile"
+		"onCommand:webshark.openFile",
+		"onCommand:webshark.filterPcap"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -32,6 +33,10 @@
 			{
 				"command": "webshark.openFile",
 				"title": "Open pcap file..."
+			},
+			{
+				"command": "webshark.filterPcap",
+				"title": "Filter pcap file..."
 			}
 		],
 		"configuration": [
@@ -42,6 +47,11 @@
 						"type": "string",
 						"default": "sharkd",
 						"description": "Full path incl. file to the Wireshark - sharkd binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/sharkd"
+					},
+					"vsc-webshark.tsharkFullPath": {
+						"type": "string",
+						"default": "tshark",
+						"description": "Full path incl. file to the Wireshark - tshark binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/tshark or for win: c:\\program files\\Wireshark\\tshark.exe"
 					},
 					"vsc-webshark.events": {
 						"type": "array",
@@ -83,6 +93,147 @@
 								}
 							}
 						}
+					},
+					"vsc-webshark.filterSteps": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"title": "step configuration",
+							"properties": {
+								"title": {
+									"type": "string",
+									"description": "Descriptive title of the step"
+								},
+								"staticItems": {
+									"type": "array",
+									"description": "Optional items that are added to the quick pick for this step.",
+									"items": {
+										"type": "object",
+										"properties": {
+											"key": {
+												"type": "string",
+												"description": "Will be shown in first column and used as param to filterField."
+											},
+											"filterField": {
+												"type": "string",
+												"description": "tshark filter field that will be used with key."
+											},
+											"icon": {
+												"type": "string",
+												"description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
+											}
+										}
+									}
+								},
+								"listProvider": {
+									"type": "array",
+									"description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
+									"items": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									}
+								},
+								"listIcon": {
+									"type": "string",
+									"description": "Optional codicon icon for the provided elements."
+								},
+								"filterField": {
+									"type": "string",
+									"description": "Tshark filter field that will be used with the first column results from the listProvider."
+								},
+								"filterArgs": {
+									"type": "array",
+									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
+									"items": {
+										"type": "string"
+									}
+								},
+								"filterNegate": {
+									"type": "boolean",
+									"description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
+								}
+							}
+						},
+						"default": [
+							{
+								"title": "select all MAC addresses to keep",
+								"staticItems": [
+									{
+										"key": "224.0.0.0/4",
+										"ip.src": "multicast",
+										"icon": "$(globe)",
+										"filterField": "ip.addr"
+									}
+								],
+								"listProvider": [
+									[
+										"-n",
+										"-Q",
+										"-e eth.src",
+										"-e ip.src",
+										"-E header=y",
+										"-T fields"
+									]
+								],
+								"listDescription": [
+									"ip.src"
+								],
+								"listIcon": "$(device-mobile)",
+								"filterField": "eth.addr",
+								"filterArgs": [
+									"-n"
+								]
+							},
+							{
+								"title": "select UDP destination ports (udp.dstport) to remove",
+								"listProvider": [
+									[
+										"-n",
+										"-Q",
+										"-e udp.dstport",
+										"-e ip.src",
+										"-E header=y",
+										"-T fields",
+										"-Y udp"
+									]
+								],
+								"listDescription": [
+									"ip.src"
+								],
+								"listIcon": "$(rss)",
+								"filterField": "udp.dstport",
+								"filterArgs": [
+									"-n"
+								],
+								"filterNegate": true
+							},
+							{
+								"title": "select TCP destination ports (tcp.dstport) to remove",
+								"listProvider": [
+									[
+										"-n",
+										"-Q",
+										"-e tcp.dstport",
+										"-e ip.src",
+										"-E header=y",
+										"-T fields",
+										"-Y tcp"
+									]
+								],
+								"listDescription": [
+									"ip.src"
+								],
+								"listIcon": "$(plug)",
+								"filterField": "tcp.dstport",
+								"filterNegate": true
+							},
+							{
+								"title": "enter any additional (can be empty) display filter expression"
+							}
+						],
+						"description": "Steps offered for the 'Filter pcap file...' function"
 					}
 				}
 			}

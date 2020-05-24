@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.6.0]
+- Added "filter pcap ..." function.
+
 ## [0.5.1]
 - Delayed checkActiveExtensions a bit.
 
