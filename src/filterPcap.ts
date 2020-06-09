@@ -26,6 +26,14 @@ export async function filterPcap(uri: vscode.Uri) {
 
     const steps: object[] = [...confSteps];
 
+    // clear any prev. results:
+    for (let s = 0; s < steps.length; ++s) {
+        const step: any = steps[s];
+        step.listProviderFinished = undefined;
+        step.listProviderData = undefined;
+        step.results = undefined;
+    }
+
     const updatePickItem = function (item: PickItem, data: any, key: string, listDescription: string[] | undefined): void {
         item.name = key;
         if (data.icon) {

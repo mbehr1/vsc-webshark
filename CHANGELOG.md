@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.6.1]
+- Clear prev. filter pcap quick pick results
+
 ## [0.6.0]
 - Added "filter pcap ..." function.
 
