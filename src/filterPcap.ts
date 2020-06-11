@@ -12,12 +12,9 @@ const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
 
 export async function filterPcap(uri: vscode.Uri) {
 
-    const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
-    const tsharkFullPath: string = confTshark ? confTshark : 'tshark';
-
     const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.filterSteps');
 
-    console.log(`filterPcap(${uri.toString()}) with tsharkFullPath='${tsharkFullPath}' and ${confSteps?.length} steps...`);
+    console.log(`filterPcap(${uri.toString()}) with ${confSteps?.length} steps...`);
 
     if (confSteps === undefined || confSteps.length === 0) {
         vscode.window.showErrorMessage('please check your vsc-webshark.filterSteps configuration! None defined.', { modal: true });
@@ -25,6 +22,117 @@ export async function filterPcap(uri: vscode.Uri) {
     }
 
     const steps: object[] = [...confSteps];
+
+    const execFunction = function (steps: readonly object[], saveUri: vscode.Uri) {
+        let tsharkArgs: string[][] = getTSharkArgs(steps);
+        if (tsharkArgs.length) {
+            vscode.window.withProgress(
+                { cancellable: true, location: vscode.ProgressLocation.Notification, title: `filtering file to ${saveUri.toString()}` },
+                async (progress, cancelToken) => {
+                    // run tshark:
+                    let receivedData: Buffer[] = [];
+                    const tp = new tshark.TSharkProcess(getTsharkFullPath(),
+                        tsharkArgs,
+                        (data: Buffer) => {
+                            receivedData.push(data);
+                        }, uri.fsPath, saveUri.fsPath);
+                    let wasCancelled = false;
+                    cancelToken.onCancellationRequested(() => {
+                        console.log(`filtering cancelled.`);
+                        wasCancelled = true;
+                        tp.dispose();
+                    });
+                    progress.report({ message: `Applying ${tsharkArgs.length} filter...` });
+                    let interval = setInterval(() => {
+                        var stats = fs.statSync(saveUri.fsPath);
+                        const fileSize = stats["size"] / (1000 * 1000);
+                        progress.report({ message: `Applying ${tsharkArgs.length} filter... generated ${Math.round(fileSize)}MB` });
+                    }, 1000); // todo could add number of seconds running as well
+                    await tp.done().then((res: number) => {
+                        if (res === 0) {
+                            vscode.window.showInformationMessage(`successfully filtered file '${saveUri.toString()}'`);
+                            const receivedStrs = receivedData.join('').split('\n');
+                            console.log(`done receivedStrs=${receivedStrs.length}`);
+                            for (let i = 0; i < receivedStrs.length; ++i) {
+                                const line = receivedStrs[i];
+                                console.log(line);
+                            }
+                        } else {
+                            if (!wasCancelled) {
+                                vscode.window.showErrorMessage(`filtering file failed with res=${res}`, { modal: true });
+                            }
+                        }
+                    }).catch((err) => {
+                        console.log(`got err:${err}`);
+                        vscode.window.showErrorMessage(`filtering file failed with err=${err}`, { modal: true });
+                    });
+                    clearInterval(interval);
+                }
+            );
+        }
+    };
+
+    return execFilterPcap(uri, steps, execFunction);
+
+}
+
+function getFilterExpr(stepData: any, items: readonly PickItem[] | string): string {
+    // return a tshark filter expression to be used with -Y ...
+    let filter: string = '';
+
+    if (Array.isArray(items)) {
+        for (let i = 0; i < items.length; ++i) {
+            const item = items[i];
+            console.log(` getFilterExpr item=${JSON.stringify(item)}`);
+            if (item.data.key.length === 0) { continue; }// skip
+            if (filter.length > 0) {
+                filter += ' or ';
+            }
+            if (item.data.data?.filterField !== undefined) {
+                filter += item.data.data.filterField;
+            } else {
+                filter += stepData.filterField;
+            }
+            filter += `==${item.data.key}`;
+        }
+
+        if (stepData.filterNegate !== undefined && stepData.filterNegate && filter.length > 0) {
+            filter = `!(${filter})`;
+        }
+    } else {
+        filter = <string>items;
+    }
+
+    return filter;
+};
+
+function getTSharkArgs(steps: readonly any[]): string[][] {
+    let tsharkArgs: string[][] = [];
+    for (let s = 0; s < steps.length; ++s) {
+        const stepData: any = steps[s];
+        const filterExpr = getFilterExpr(stepData, stepData.results);
+        let stepArgs: string[] = stepData.filterArgs ? [...stepData.filterArgs] : [];
+        if (filterExpr.length) {
+            stepArgs.push(`-Y ${separator}${filterExpr}${separator}`);
+        }
+        console.log(`got filter from step ${s}: '${filterExpr}'`);
+        console.log(`got tsharkArgs from step ${s}: '${stepArgs.join(' ')}'`);
+        if (stepArgs.length) { tsharkArgs.push(stepArgs); }
+    }
+    return tsharkArgs;
+};
+
+function getTsharkFullPath(): string {
+    const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
+    const tsharkFullPath: string = confTshark ? confTshark : 'tshark';
+    return tsharkFullPath;
+}
+
+async function execFilterPcap(uri: vscode.Uri, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
+
+    const tsharkFullPath: string = getTsharkFullPath();
+
+    console.log(`execFilterPcap(${uri.toString()}) with tsharkFullPath='${tsharkFullPath}' and ${steps?.length} steps...`);
 
     // clear any prev. results:
     for (let s = 0; s < steps.length; ++s) {
@@ -81,52 +189,6 @@ export async function filterPcap(uri: vscode.Uri) {
         });
         quickPick.items = items;
         quickPick.selectedItems = newSelItems;
-    };
-
-    const getFilterExpr = function (stepData: any, items: readonly PickItem[] | string): string {
-        // return a tshark filter expression to be used with -Y ...
-        let filter: string = '';
-
-        if (Array.isArray(items)) {
-            for (let i = 0; i < items.length; ++i) {
-                const item = items[i];
-                console.log(` getFilterExpr item=${JSON.stringify(item)}`);
-                if (item.data.key.length === 0) { continue; }// skip
-                if (filter.length > 0) {
-                    filter += ' or ';
-                }
-                if (item.data.data?.filterField !== undefined) {
-                    filter += item.data.data.filterField;
-                } else {
-                    filter += stepData.filterField;
-                }
-                filter += `==${item.data.key}`;
-            }
-
-            if (stepData.filterNegate !== undefined && stepData.filterNegate && filter.length > 0) {
-                filter = `!(${filter})`;
-            }
-        } else {
-            filter = <string>items;
-        }
-
-        return filter;
-    };
-
-    const getTSharkArgs = function (steps: any[]): string[][] {
-        let tsharkArgs: string[][] = [];
-        for (let s = 0; s < steps.length; ++s) {
-            const stepData: any = steps[s];
-            const filterExpr = getFilterExpr(stepData, stepData.results);
-            let stepArgs: string[] = stepData.filterArgs ? [...stepData.filterArgs] : [];
-            if (filterExpr.length) {
-                stepArgs.push(`-Y ${separator}${filterExpr}${separator}`);
-            }
-            console.log(`got filter from step ${s}: '${filterExpr}'`);
-            console.log(`got tsharkArgs from step ${s}: '${stepArgs.join(' ')}'`);
-            if (stepArgs.length) { tsharkArgs.push(stepArgs); }
-        }
-        return tsharkArgs;
     };
 
     for (let s = 0; s < steps.length; ++s) {
@@ -230,52 +292,7 @@ export async function filterPcap(uri: vscode.Uri) {
                             vscode.window.showErrorMessage('Filtering into same file not possible. Please choose a different one.', { modal: true });
                             doRetry = true;
                         } else {
-                            let tsharkArgs: string[][] = getTSharkArgs(steps);
-                            if (tsharkArgs.length) {
-                                vscode.window.withProgress(
-                                    { cancellable: true, location: vscode.ProgressLocation.Notification, title: `filtering file to ${saveUri.toString()}` },
-                                    async (progress, cancelToken) => {
-                                        // run tshark:
-                                        let receivedData: Buffer[] = [];
-                                        const tp = new tshark.TSharkProcess(tsharkFullPath,
-                                            tsharkArgs,
-                                            (data: Buffer) => {
-                                                receivedData.push(data);
-                                            }, uri.fsPath, saveUri.fsPath);
-                                        let wasCancelled = false;
-                                        cancelToken.onCancellationRequested(() => {
-                                            console.log(`filtering cancelled.`);
-                                            wasCancelled = true;
-                                            tp.dispose();
-                                        });
-                                        progress.report({ message: `Applying ${tsharkArgs.length} filter...` });
-                                        let interval = setInterval(() => {
-                                            var stats = fs.statSync(saveUri.fsPath);
-                                            const fileSize = stats["size"] / (1000 * 1000);
-                                            progress.report({ message: `Applying ${tsharkArgs.length} filter... generated ${Math.round(fileSize)}MB` });
-                                        }, 1000); // todo could add number of seconds running as well
-                                        await tp.done().then((res: number) => {
-                                            if (res === 0) {
-                                                vscode.window.showInformationMessage(`successfully filtered file '${saveUri.toString()}'`);
-                                                const receivedStrs = receivedData.join('').split('\n');
-                                                console.log(`done receivedStrs=${receivedStrs.length}`);
-                                                for (let i = 0; i < receivedStrs.length; ++i) {
-                                                    const line = receivedStrs[i];
-                                                    console.log(line);
-                                                }
-                                            } else {
-                                                if (!wasCancelled) {
-                                                    vscode.window.showErrorMessage(`filtering file failed with res=${res}`, { modal: true });
-                                                }
-                                            }
-                                        }).catch((err) => {
-                                            console.log(`got err:${err}`);
-                                            vscode.window.showErrorMessage(`filtering file failed with err=${err}`, { modal: true });
-                                        });
-                                        clearInterval(interval);
-                                    }
-                                );
-                            }
+                            execFunction(steps, saveUri);
                         }
                     }
                 });
