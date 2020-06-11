@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.6.1",
+	"version": "0.7.0",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -25,7 +25,8 @@
 	"activationEvents": [
 		"onWebviewPanel:vsc-webshark",
 		"onCommand:webshark.openFile",
-		"onCommand:webshark.filterPcap"
+		"onCommand:webshark.filterPcap",
+		"onCommand:webshark.extractDlt"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -37,6 +38,10 @@
 			{
 				"command": "webshark.filterPcap",
 				"title": "Filter pcap file..."
+			},
+			{
+				"command": "webshark.extractDlt",
+				"title": "Extract DLT from pcap file..."
 			}
 		],
 		"configuration": [
@@ -234,6 +239,130 @@
 							}
 						],
 						"description": "Steps offered for the 'Filter pcap file...' function"
+					},
+					"vsc-webshark.extractDltArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Arguments used for tshark. Should contain timestamp as epoch and hexdump of dlt message payload",
+						"default": [
+							"-n",
+							"--disable-protocol dlt",
+							"-e frame.time_epoch -e data",
+							"-T fields"
+						]
+					},
+					"vsc-webshark.extractDltSteps": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"title": "step configuration",
+							"properties": {
+								"title": {
+									"type": "string",
+									"description": "Descriptive title of the step"
+								},
+								"staticItems": {
+									"type": "array",
+									"description": "Optional items that are added to the quick pick for this step.",
+									"items": {
+										"type": "object",
+										"properties": {
+											"key": {
+												"type": "string",
+												"description": "Will be shown in first column and used as param to filterField."
+											},
+											"filterField": {
+												"type": "string",
+												"description": "tshark filter field that will be used with key."
+											},
+											"icon": {
+												"type": "string",
+												"description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
+											}
+										}
+									}
+								},
+								"listProvider": {
+									"type": "array",
+									"description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
+									"items": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									}
+								},
+								"listIcon": {
+									"type": "string",
+									"description": "Optional codicon icon for the provided elements."
+								},
+								"filterField": {
+									"type": "string",
+									"description": "Tshark filter field that will be used with the first column results from the listProvider."
+								},
+								"filterArgs": {
+									"type": "array",
+									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
+									"items": {
+										"type": "string"
+									}
+								},
+								"filterNegate": {
+									"type": "boolean",
+									"description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
+								}
+							}
+						},
+						"default": [
+							{
+								"title": "enter udp.dstport with the DLT data to export",
+								"staticItems": [
+									{
+										"key": "3490",
+										"filterField": "udp.dstport"
+									}
+								],
+								"listProvider": [
+									[
+										"-n",
+										"-Q",
+										"-e udp.dstport",
+										"-E header=y",
+										"-T fields"
+									]
+								],
+								"filterField": "udp.dstport",
+								"filterArgs": [
+									"-n",
+									"--disable-protocol dlt"
+								]
+							},
+							{
+								"title": "select all MAC addresses with the DLT data to export",
+								"listProvider": [
+									[
+										"-n",
+										"-Q",
+										"-e eth.src",
+										"-e ip.src",
+										"-E header=y",
+										"-T fields"
+									]
+								],
+								"listDescription": [
+									"ip.src"
+								],
+								"listIcon": "$(device-mobile)",
+								"filterField": "eth.addr",
+								"filterArgs": [
+									"-n",
+									"--disable-protocol dlt"
+								]
+							}
+						],
+						"description": "Steps offered for the 'Extract DLT from pcap file...' function"
 					}
 				}
 			}

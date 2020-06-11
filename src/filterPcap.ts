@@ -72,8 +72,88 @@ export async function filterPcap(uri: vscode.Uri) {
         }
     };
 
-    return execFilterPcap(uri, steps, execFunction);
+    return execFilterPcap(uri, '_filtered.pcap', steps, execFunction);
 
+}
+
+
+export async function extractDlt(uri: vscode.Uri) {
+    const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.extractDltSteps');
+    const extractArgs = vscode.workspace.getConfiguration().get<Array<string>>('vsc-webshark.extractDltArgs');
+
+    console.log(`extractDlt(${uri.toString()}) with ${confSteps?.length} steps...`);
+
+    if (confSteps === undefined || confSteps.length === 0) {
+        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltSteps configuration! None defined.', { modal: true });
+        return;
+    }
+    if (extractArgs === undefined || extractArgs.length === 0) {
+        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltArgs configuration! None defined.', { modal: true });
+        return;
+    }
+
+    const steps: object[] = [...confSteps];
+
+    return execFilterPcap(uri, '_extracted.dlt', steps, (steps: readonly object[], saveUri: vscode.Uri) => {
+        let tsharkArgs: string[][] = getTSharkArgs(steps);
+        // we add the specific args here:
+        tsharkArgs.push(extractArgs);
+        if (tsharkArgs.length) {
+            vscode.window.withProgress(
+                { cancellable: true, location: vscode.ProgressLocation.Notification, title: `extracting DLT to ${saveUri.toString()}` },
+                async (progress, cancelToken) => {
+                    let nrMsgs = 0;
+                    // create the file:
+                    const saveFile = fs.createWriteStream(saveUri.fsPath, { encoding: "binary" });
+
+                    // run tshark:
+                    const tp = new tshark.TSharkDataProvider(getTsharkFullPath(),
+                        tsharkArgs, uri.fsPath);
+                    const bufStorageHeader = Buffer.alloc(16);
+                    bufStorageHeader.writeUInt32LE(0x01544c44, 0); // DLT+0x01 (0x44 0x4c 0x54 0x01)
+                    bufStorageHeader.write('pcap', 12, 4, "ascii"); // ECU ID four chars (we hardcode to pcap)
+
+                    tp.onDidChangeData((lines: readonly string[]) => {
+                        //console.log(`onDidChangeData(lines.length=${lines.length}`);
+                        for (let i = 0; i < lines.length; ++i) {
+                            const line = lines[i].split('\t');
+                            const [strSeconds, strMicros] = line[0].split('.');
+                            const seconds = Number(strSeconds);
+                            const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
+                            const bufPayload = Buffer.from(line[1], "hex");
+                            // Timestamp: uint32 seconds sint32 micros
+                            bufStorageHeader.writeUInt32LE(seconds, 4);
+                            bufStorageHeader.writeInt32LE(micros, 8);
+                            saveFile.write(bufStorageHeader);
+                            saveFile.write(bufPayload);
+                            nrMsgs++;
+                        }
+                    });
+
+                    let wasCancelled = false;
+                    cancelToken.onCancellationRequested(() => {
+                        console.log(`extracting cancelled.`);
+                        wasCancelled = true;
+                        tp.dispose();
+                    });
+                    progress.report({ message: `Extracting DLT...` });
+                    let interval = setInterval(() => {
+                        var stats = fs.statSync(saveUri.fsPath);
+                        const fileSize = stats["size"] / (1000 * 1000);
+                        progress.report({ message: `Extracting DLT generated ${nrMsgs} msgs and ${Math.round(fileSize)}MB` });
+                    }, 1000); // todo could add number of seconds running as well
+                    await tp.done().then((res: number) => {
+                        saveFile.close();
+                        vscode.window.showInformationMessage(`successfully extracted ${nrMsgs} DLT msgs to file '${saveUri.toString()}'`);
+                    }).catch((err) => {
+                        console.log(`got err:${err}`);
+                        vscode.window.showErrorMessage(`extracting DLT failed with err=${err}`, { modal: true });
+                    });
+                    clearInterval(interval);
+                }
+            );
+        }
+    });
 }
 
 function getFilterExpr(stepData: any, items: readonly PickItem[] | string): string {
@@ -128,7 +208,7 @@ function getTsharkFullPath(): string {
     return tsharkFullPath;
 }
 
-async function execFilterPcap(uri: vscode.Uri, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
+async function execFilterPcap(uri: vscode.Uri, saveFileExt: string, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
 
     const tsharkFullPath: string = getTsharkFullPath();
 
@@ -285,7 +365,7 @@ async function execFilterPcap(uri: vscode.Uri, steps: readonly object[], execFun
             let doRetry;
             do {
                 doRetry = false;
-                await vscode.window.showSaveDialog({ defaultUri: uri.with({ path: uri.path + '_filtered.pcap' }), saveLabel: 'save filtered pcap as ...' }).then(async saveUri => {
+                await vscode.window.showSaveDialog({ defaultUri: uri.with({ path: uri.path + saveFileExt }), saveLabel: 'save filtered pcap as ...' }).then(async saveUri => {
                     if (saveUri) {
                         console.log(`save as uri=${saveUri?.toString()}`);
                         if (saveUri.toString() === uri.toString()) {

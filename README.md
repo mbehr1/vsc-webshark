@@ -25,6 +25,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
   - If a time was received already the *adjust-time...* will propose to adjust/sync the selected line to the received one.
 - Tree-view with freely-configurable events based on display filter syntax allows to provide a kind of structure of the frames captured. Selecting an event reveals the frames close to that reception time (even the frames are not part of the current display filter).
 - **Filter pcap files** assistant (mainly to reduce size and ease further analysis). Use command "Filter pcap file...". This generates and executes Wireshark-tshark based filter expressions and executes them to create a new pcap files with only the filter matching frames. The steps are fully configurable. The default settings provide filter on MAC addresses, udp dest ports, tcp dest ports and an additional filter expression.
+- **Extract DLT from pcap** assistant that allows to extract DLT files directly from pcap files. Use command "Extract DLT from pcap file..." and select/confirm the UDP port and choose the devices/MAC addresses that sent the DLT data.
 
 The extension uses telemetry with two events (`open file`, errorcode as parameter or `filter pcap`) if telemetry is activated within your general configuration.
 
@@ -55,6 +56,8 @@ This extension contributes the following settings:
   * `timeSyncPrio` defining the prio of this event. Other documents use the lowest value (=highest prio) to define which events to use for time adjustment (so whether to use just broadcast their own defined ones or in case of a timeSyncId and timeSyncValue match to adjust the time).
   * `conversionFunction` can be used to modify the time-sync value calculated for that event. Needs to be a JS function returning a string. If not used the values are concated by ' ' and if no values defined by info column.
 * `vsc-webshark.filterSteps`: defines the configurable steps of the "filter pcap file..." assistant. See the default/configuration for an example. (Todo: provide a full description). Please consider using "-C <config-name>" in filterArgs and listProvider to use tshark with a minimal configuration (only the plugins activated that you do need for the used filters) to speed up processing significantly. The configuration allows to use multiple steps and chained/piped filters to start with a minimal config and use your default config with more complex plugins/filter expressions (e.g. someip/someipsd plugin) in later steps.
+* `vsc-webshark.extractDltSteps`: similar to filterSteps but for the "extract DLT from pcap file..." function.
+* `vsc-webshark.extractDltArgs`: arguments used for tshark to extract the DLT message payload from the pcap file.
 
 
 ## Known Issues
