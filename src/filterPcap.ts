@@ -10,11 +10,11 @@ import { QuickInputHelper, PickItem } from './quickPick';
 const platformWin32: boolean = process.platform === "win32";
 const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
 
-export async function filterPcap(uri: vscode.Uri) {
+export async function filterPcap(uris: readonly vscode.Uri[]) {
 
     const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.filterSteps');
 
-    console.log(`filterPcap(${uri.toString()}) with ${confSteps?.length} steps...`);
+    console.log(`filterPcap(${uris.map(v => v.toString()).join(',')}) with ${confSteps?.length} steps...`);
 
     if (confSteps === undefined || confSteps.length === 0) {
         vscode.window.showErrorMessage('please check your vsc-webshark.filterSteps configuration! None defined.', { modal: true });
@@ -31,11 +31,10 @@ export async function filterPcap(uri: vscode.Uri) {
                 async (progress, cancelToken) => {
                     // run tshark:
                     let receivedData: Buffer[] = [];
-                    const tp = new tshark.TSharkProcess(getTsharkFullPath(),
-                        tsharkArgs,
+                    const tp = new tshark.TSharkProcess(tsharkArgs,
                         (data: Buffer) => {
                             receivedData.push(data);
-                        }, uri.fsPath, saveUri.fsPath);
+                        }, uris.map(v => v.fsPath), saveUri.fsPath);
                     let wasCancelled = false;
                     cancelToken.onCancellationRequested(() => {
                         console.log(`filtering cancelled.`);
@@ -72,16 +71,16 @@ export async function filterPcap(uri: vscode.Uri) {
         }
     };
 
-    return execFilterPcap(uri, '_filtered.pcap', steps, execFunction);
+    return execFilterPcap(uris, '_filtered.pcap', steps, execFunction);
 
 }
 
 
-export async function extractDlt(uri: vscode.Uri) {
+export async function extractDlt(uris: readonly vscode.Uri[]) {
     const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.extractDltSteps');
     const extractArgs = vscode.workspace.getConfiguration().get<Array<string>>('vsc-webshark.extractDltArgs');
 
-    console.log(`extractDlt(${uri.toString()}) with ${confSteps?.length} steps...`);
+    console.log(`extractDlt(${uris.map(v => v.toString()).join(',')}) with ${confSteps?.length} steps...`);
 
     if (confSteps === undefined || confSteps.length === 0) {
         vscode.window.showErrorMessage('please check your vsc-webshark.exportDltSteps configuration! None defined.', { modal: true });
@@ -94,7 +93,7 @@ export async function extractDlt(uri: vscode.Uri) {
 
     const steps: object[] = [...confSteps];
 
-    return execFilterPcap(uri, '_extracted.dlt', steps, (steps: readonly object[], saveUri: vscode.Uri) => {
+    return execFilterPcap(uris, '_extracted.dlt', steps, (steps: readonly object[], saveUri: vscode.Uri) => {
         let tsharkArgs: string[][] = getTSharkArgs(steps);
         // we add the specific args here:
         tsharkArgs.push(extractArgs);
@@ -107,8 +106,7 @@ export async function extractDlt(uri: vscode.Uri) {
                     const saveFile = fs.createWriteStream(saveUri.fsPath, { encoding: "binary" });
 
                     // run tshark:
-                    const tp = new tshark.TSharkDataProvider(getTsharkFullPath(),
-                        tsharkArgs, uri.fsPath);
+                    const tp = new tshark.TSharkDataProvider(tsharkArgs, uris.map(v => v.fsPath));
                     const bufStorageHeader = Buffer.alloc(16);
                     bufStorageHeader.writeUInt32LE(0x01544c44, 0); // DLT+0x01 (0x44 0x4c 0x54 0x01)
                     bufStorageHeader.write('pcap', 12, 4, "ascii"); // ECU ID four chars (we hardcode to pcap)
@@ -202,17 +200,10 @@ function getTSharkArgs(steps: readonly any[]): string[][] {
     return tsharkArgs;
 };
 
-function getTsharkFullPath(): string {
-    const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
-    const tsharkFullPath: string = confTshark ? confTshark : 'tshark';
-    return tsharkFullPath;
-}
 
-async function execFilterPcap(uri: vscode.Uri, saveFileExt: string, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
+async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
 
-    const tsharkFullPath: string = getTsharkFullPath();
-
-    console.log(`execFilterPcap(${uri.toString()}) with tsharkFullPath='${tsharkFullPath}' and ${steps?.length} steps...`);
+    console.log(`execFilterPcap(${uris.map(v => v.toString()).join(',')}) with ${steps?.length} steps...`);
 
     // clear any prev. results:
     for (let s = 0; s < steps.length; ++s) {
@@ -301,7 +292,7 @@ async function execFilterPcap(uri: vscode.Uri, saveFileExt: string, steps: reado
             // add the tsharkArgs from previous steps:
             let tsharkArgs = getTSharkArgs(steps.slice(0, s));
             tsharkArgs = tsharkArgs.concat(stepData.listProvider);
-            tsharkLP = new tshark.TSharkListProvider(tsharkFullPath, tsharkArgs, null, uri.fsPath); // todo mapper
+            tsharkLP = new tshark.TSharkListProvider(tsharkArgs, null, uris.map(u => u.fsPath)); // todo mapper
             quickPick.busy = true;
 
             tsharkLP.onDidChangeData((data: tshark.ListData) => {
@@ -365,10 +356,10 @@ async function execFilterPcap(uri: vscode.Uri, saveFileExt: string, steps: reado
             let doRetry;
             do {
                 doRetry = false;
-                await vscode.window.showSaveDialog({ defaultUri: uri.with({ path: uri.path + saveFileExt }), saveLabel: 'save filtered pcap as ...' }).then(async saveUri => {
+                await vscode.window.showSaveDialog({ defaultUri: uris[0].with({ path: uris[0].path + saveFileExt }), saveLabel: 'save filtered pcap as ...' }).then(async saveUri => {
                     if (saveUri) {
                         console.log(`save as uri=${saveUri?.toString()}`);
-                        if (saveUri.toString() === uri.toString()) {
+                        if (uris.map(u => u.toString()).includes(saveUri.toString())) {
                             vscode.window.showErrorMessage('Filtering into same file not possible. Please choose a different one.', { modal: true });
                             doRetry = true;
                         } else {
@@ -379,5 +370,5 @@ async function execFilterPcap(uri: vscode.Uri, saveFileExt: string, steps: reado
             } while (doRetry);
         }
     }
-    console.log(`filterPcap(uri=${uri.toString()}) done`);
+    console.log(`filterPcap() done`);
 }

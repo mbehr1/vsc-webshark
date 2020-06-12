@@ -26,6 +26,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
 - Tree-view with freely-configurable events based on display filter syntax allows to provide a kind of structure of the frames captured. Selecting an event reveals the frames close to that reception time (even the frames are not part of the current display filter).
 - **Filter pcap files** assistant (mainly to reduce size and ease further analysis). Use command "Filter pcap file...". This generates and executes Wireshark-tshark based filter expressions and executes them to create a new pcap files with only the filter matching frames. The steps are fully configurable. The default settings provide filter on MAC addresses, udp dest ports, tcp dest ports and an additional filter expression.
 - **Extract DLT from pcap** assistant that allows to extract DLT files directly from pcap files. Use command "Extract DLT from pcap file..." and select/confirm the UDP port and choose the devices/MAC addresses that sent the DLT data.
+- **Merge pcap files** i.e. allow to use multiple input pcap files for **Filter pcap** and **Extract DLT**. The input files will be passed to mergecap tool first and merged based on frame timestamps.
 
 The extension uses telemetry with two events (`open file`, errorcode as parameter or `filter pcap`) if telemetry is activated within your general configuration.
 
@@ -45,6 +46,7 @@ This extension contributes the following settings:
 
 * `vsc-webshark.sharkdFullPath`: Specifies the absolute path incl filename to the sharkd binary. This needs to be set after installation.
 * `vsc-webshark.tsharkFullPath`: Specifies the absolute path incl filename to the tshark binary. Defaults to 'tshark'. Needs to be set after installation if tshark is not reachable via search path.
+* `vsc-webshark.mergecapFullPath`: Specifies the absolute path incl filename to the mergecap binary. Defaults to 'mergecap'. Needs to be set after installation if mergecap is not reachable via search path.
 * `vsc-webshark.events`: Defined **events** used for time-sync event detection.
   * Tree-view events need to have:
     * `level` > 0 and

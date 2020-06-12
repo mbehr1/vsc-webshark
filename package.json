@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.7.0",
+	"version": "0.8.0",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -57,6 +57,10 @@
 						"type": "string",
 						"default": "tshark",
 						"description": "Full path incl. file to the Wireshark - tshark binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/tshark or for win: c:\\program files\\Wireshark\\tshark.exe"
+					},
+					"vsc-webshark.mergecapFullPath": {
+						"type": "string",
+						"description": "Full path incl. file to the Wireshark - mergecap binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/mergecap or for win: c:\\program files\\Wireshark\\mergecap.exe"
 					},
 					"vsc-webshark.events": {
 						"type": "array",

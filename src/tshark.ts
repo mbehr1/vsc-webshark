@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 
 let _nextTSharkdId = 1;
@@ -10,7 +11,26 @@ let _nextTSharkdId = 1;
 const platformWin32: boolean = process.platform === "win32";
 const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
 
+function getTsharkFullPath(): string {
+    const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
+    const tsharkFullPath: string = confTshark ? confTshark : 'tshark';
+    return tsharkFullPath;
+}
+
+function getMergecapFullPath(): string {
+    const confMergecap = vscode.workspace.getConfiguration().get<string>('vsc-webshark.mergecapFullPath');
+    if (confMergecap) {
+        return confMergecap;
+    } else {
+        // lets provide a better default with the tshark path:
+        const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
+        return confTshark ? path.join(path.dirname(confTshark), 'mergecap') : 'mergecap';
+    }
+}
+
 export class TSharkProcess implements vscode.Disposable {
+    private _tsharkPath: string = getTsharkFullPath();
+    private _mergecapPath: string = getMergecapFullPath();
     public id: number;
     private _proc: ChildProcess;
     public running: boolean = false;
@@ -20,10 +40,10 @@ export class TSharkProcess implements vscode.Disposable {
 
     private _onDataFunction: null | ((data: Buffer) => void);
 
-    constructor(public tsharkPath: string, tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, onDataFunction: ((data: Buffer) => void), private _inFile: string = '', private _outFile: string = '') {
+    constructor(tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, onDataFunction: ((data: Buffer) => void), private _inFiles: readonly string[] = [], private _outFile: string = '') {
         this.id = _nextTSharkdId++;
         this._onDataFunction = onDataFunction;
-        console.log(`spawning ${tsharkPath} from cwd=${process.cwd()} win32=${platformWin32}`);
+        console.log(`spawning ${this._tsharkPath} from cwd=${process.cwd()} win32=${platformWin32}`);
 
         if (tsharkArgs.length < 1) {
             throw Error('tharkArgs.length <1');
@@ -36,10 +56,12 @@ export class TSharkProcess implements vscode.Disposable {
             localTsharkArgs.push([...innerArr]);
         }
 
-        if (_inFile.length) { localTsharkArgs[0].unshift(`-r ${separator}${_inFile}${separator}`); }
+        const haveMultipleInFiles: boolean = _inFiles.length > 1;
+
+        if (_inFiles.length === 1) { localTsharkArgs[0].unshift(`-r ${separator}${_inFiles[0]}${separator}`); }
         if (_outFile.length) { localTsharkArgs[localTsharkArgs.length - 1].push(`-w ${separator}${_outFile}${separator}`); }
 
-        if (localTsharkArgs.length > 1) {
+        if (localTsharkArgs.length > 1 || haveMultipleInFiles) {
             // we have more than one process that we'd like to pipe the output to
             const command: string = platformWin32 ? 'cmd' : 'sh';
             const args: string[] = [`${platformWin32 ? '/s /c' : '-c'}`];
@@ -47,9 +69,20 @@ export class TSharkProcess implements vscode.Disposable {
 
             // add pipe support for the interims ones:
             let longArg: string = '"';
+
+            // for multiple in files we first pass via mergecap:
+            if (haveMultipleInFiles) {
+                longArg += `${separator}${this._mergecapPath}${separator} -w -`;
+                for (let f = 0; f < _inFiles.length; ++f) {
+                    longArg += ` ${separator}${_inFiles[f]}${separator}`;
+                }
+                longArg += `|`;
+                console.log(`spawning ${longArg} for ${_inFiles.length} multiple files`);
+            }
+
             for (let i = 0; i < localTsharkArgs.length; ++i) {
-                longArg += `${separator}${tsharkPath}${separator} `;
-                if (i > 0) { longArg += `-r - `; }
+                longArg += `${separator}${this._tsharkPath}${separator} `;
+                if (i > 0 || haveMultipleInFiles) { longArg += `-r - `; }
                 longArg += localTsharkArgs[i].join(' ');
                 if (i < localTsharkArgs.length - 1) { longArg += ` -w -|`; }
             }
@@ -68,12 +101,12 @@ export class TSharkProcess implements vscode.Disposable {
                 detached: !platformWin32
             });
         } else { // single args. spawn directly
-            console.log(`spawning ${tsharkPath} from cwd=${process.cwd()} win32=${platformWin32} args:`);
+            console.log(`spawning ${this._tsharkPath} from cwd=${process.cwd()} win32=${platformWin32} args:`);
             for (let i = 0; i < localTsharkArgs[0].length; ++i) {
                 console.log(` ${localTsharkArgs[0][i]}`);
             }
 
-            this._proc = spawn(`${separator}${tsharkPath}${separator}`, localTsharkArgs[0], {
+            this._proc = spawn(`${separator}${this._tsharkPath}${separator}`, localTsharkArgs[0], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: true,
                 windowsVerbatimArguments: platformWin32 ? true : false
@@ -144,8 +177,8 @@ export class TSharkDataProvider implements vscode.Disposable {
     private _tshark: TSharkProcess;
     private _partialLine: string = '';
 
-    constructor(tsharkPath: string, tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, private _inFile: string = '', private _outFile: string = '') {
-        this._tshark = new TSharkProcess(tsharkPath, tsharkArgs, this.onData.bind(this), _inFile, _outFile);
+    constructor(tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, private _inFiles: readonly string[] = [], private _outFile: string = '') {
+        this._tshark = new TSharkProcess(tsharkArgs, this.onData.bind(this), _inFiles, _outFile);
     }
 
     done(): Promise<number> {
@@ -193,8 +226,8 @@ export class TSharkListProvider implements vscode.Disposable {
     private _expectHeader: boolean = true; // for now we do always expect the query with -E header=y
     public headers: string[] = [];
 
-    constructor(tsharkPath: string, tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, private _valueMapper: ((key: string, value: string) => string[]) | null = null, private _inFile: string = '', private _outFile: string = '') {
-        this._tshark = new TSharkDataProvider(tsharkPath, tsharkArgs, _inFile, _outFile);
+    constructor(tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, private _valueMapper: ((key: string, value: string) => string[]) | null = null, private _inFiles: readonly string[] = [], private _outFile: string = '') {
+        this._tshark = new TSharkDataProvider(tsharkArgs, _inFiles, _outFile);
         this._tshark.onDidChangeData(this.onData.bind(this));
     }
 

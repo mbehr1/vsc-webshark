@@ -98,28 +98,25 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.filterPcap', async () => {
-		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to filter...' }).then(
+		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: true, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to filter...' }).then(
 			async (uris: vscode.Uri[] | undefined) => {
-				if (uris) {
-					uris.forEach((uri) => {
-						console.log(`webshark.filterPcap got URI=${uri.toString()}`);
-						if (reporter) { reporter.sendTelemetryEvent("filter pcap", undefined, { 'err': 0 }); }
-						filterPcap(uri);
-					});
+				if (uris && uris.length > 0) {
+					console.log(`webshark.filterPcap got #URIs=${uris.length}`);
+					if (reporter) { reporter.sendTelemetryEvent("filter pcap", undefined, { 'err': 0 }); }
+					filterPcap(uris);
+
 				}
 			}
 		);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.extractDlt', async () => {
-		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to extract DLT from...' }).then(
+		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: true, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to extract DLT from...' }).then(
 			async (uris: vscode.Uri[] | undefined) => {
-				if (uris) {
-					uris.forEach((uri) => {
-						console.log(`webshark.extractDlt got URI=${uri.toString()}`);
-						if (reporter) { reporter.sendTelemetryEvent("extract dlt", undefined, { 'err': 0 }); }
-						extractDlt(uri);
-					});
+				if (uris && uris.length > 0) {
+					console.log(`webshark.extractDlt got #URIs=${uris.length}`);
+					if (reporter) { reporter.sendTelemetryEvent("extract dlt", undefined, { 'err': 0 }); }
+					extractDlt(uris);
 				}
 			}
 		);
