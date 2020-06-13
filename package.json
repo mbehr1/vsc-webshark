@@ -2,7 +2,7 @@
 	"name": "vsc-webshark",
 	"displayName": "vsc-webshark",
 	"description": "pcap / network trace / wireshark extension",
-	"version": "0.8.0",
+	"version": "0.9.0",
 	"publisher": "mbehr1",
 	"license": "GPL-2.0",
 	"author": {
@@ -23,6 +23,7 @@
 		"Other"
 	],
 	"activationEvents": [
+		"onCustomEditor:vsc-webshark.pcap",
 		"onWebviewPanel:vsc-webshark",
 		"onCommand:webshark.openFile",
 		"onCommand:webshark.filterPcap",
@@ -30,6 +31,23 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "vsc-webshark.pcap",
+				"displayName": "pcap/pcapng/cap",
+				"selector": [
+					{
+						"filenamePattern": "*.pcap"
+					},
+					{
+						"filenamePattern": "*.pcapng"
+					},
+					{
+						"filenamePattern": "*.cap"
+					}
+				]
+			}
+		],
 		"commands": [
 			{
 				"command": "webshark.openFile",
@@ -401,7 +419,7 @@
 		"@types/glob": "^7.1.1",
 		"@types/mocha": "^7.0.1",
 		"@types/node": "^12.11.7",
-		"@types/vscode": "^1.44.0",
+		"@types/vscode": "^1.46.0",
 		"eslint": "^6.8.0",
 		"@typescript-eslint/parser": "^2.18.0",
 		"@typescript-eslint/eslint-plugin": "^2.18.0",

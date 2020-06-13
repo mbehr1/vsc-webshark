@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.9.0]
+- Add support to open cap/pcap/pcapng files directly. Requires vscode >=1.46.
+
 ## [0.8.0]
 - Add support for multiple input files for "filter pcap..." and "Extract DLT from pcap file..."
 

@@ -16,7 +16,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
 
 ## Features
 
-- Open 'pcap'/'pcapng' network capture files. Use command "Open pcap file...";
+- Open 'pcap'/'pcapng' network capture files. Use command "Open pcap file..." or with vscode >=1.46 directly open cap/pcap/pcapng files.
 - Display filter with known syntax from wireshark
 - **Time sync** feature.
   - Calculates time for each frame based on timestamp and broadcasts the time to the other **Time sync** extensions so that they reveal the fitting time ranges.
@@ -32,7 +32,6 @@ The extension uses telemetry with two events (`open file`, errorcode as paramete
 
 ## Planned features
 
-- use CustomEditorProvider api to support direct open of .pcap/.pcapng files.
 - make it look nicer / more compliant to schema.
 - indicate running background tasks
 

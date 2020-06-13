@@ -4,21 +4,12 @@
 
 import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData } from './websharkView';
-import { statSync } from 'fs';
+import { fileExists, WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData, WebsharkViewReadonlyEditorProvider } from './websharkView';
 import { TreeViewNode, TreeViewProvider } from './treeViewProvider';
 import { filterPcap, extractDlt } from './filterPcap';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
-
-function fileExists(filePath: string) {
-	try {
-		return statSync(filePath).isFile();
-	} catch (err) {
-		return false;
-	}
-}
 
 const _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData> = new vscode.EventEmitter<SelectedTimeData>();
 let _didChangeSelectedTimeSubscriptions: Array<vscode.Disposable> = new Array<vscode.Disposable>();
@@ -27,7 +18,7 @@ let treeView: vscode.TreeView<TreeViewNode> | undefined = undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 
-	console.log(`${extensionId} is now active!`);
+	console.log(`${extensionId} is now active! (vscode version=${vscode.version})`);
 	const extension = vscode.extensions.getExtension(extensionId);
 
 	if (extension) {
@@ -58,6 +49,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	if (+vscode.version.match(/1\.(\d+)/)![1] >= 46) { // only with >=1.46... (todo need to improve with semver check 2.x..)
+		context.subscriptions.push(vscode.window.registerCustomEditorProvider('vsc-webshark.pcap',
+			new WebsharkViewReadonlyEditorProvider(reporter, treeDataProvider, _onDidChangeSelectedTime, context, activeViews, (r) => {
+				const idx = activeViews.indexOf(r);
+				console.log(` WebsharkViewReadonlyEditorProvider callback dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
+				if (idx >= 0) {
+					activeViews.splice(idx, 1);
+				}
+			}),
+			{
+				webviewOptions: { retainContextWhenHidden: true, },
+				supportsMultipleEditorsPerDocument: false
+			}));
+	} else {
+		console.log(`disabled direct open support via CustomEditorProvider due to old vscode version ${vscode.version}`);
+	}
+
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
 		let _sharkdPath = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath"));
@@ -65,7 +73,11 @@ export function activate(context: vscode.ExtensionContext) {
 		if (!fileExists(_sharkdPath)) {
 			vscode.window.showErrorMessage(`sharkdFullPath setting not pointing to a file. Please check setting. Currently used: '${_sharkdPath}'`,
 				{ modal: true }, 'open settings').then((value) => {
-					vscode.commands.executeCommand('workbench.action.openSettings', "vsc-webshark.sharkdFullPath");
+					switch (value) {
+						case 'open settings':
+							vscode.commands.executeCommand('workbench.action.openSettings', "vsc-webshark.sharkdFullPath");
+							break;
+					}
 				});
 		} else {
 
