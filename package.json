@@ -17,7 +17,7 @@
 		"url": "https://github.com/mbehr1/vsc-webshark/issues"
 	},
 	"engines": {
-		"vscode": "^1.44.0"
+		"vscode": "^1.46.0"
 	},
 	"categories": [
 		"Other"

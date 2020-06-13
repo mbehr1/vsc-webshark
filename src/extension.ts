@@ -49,22 +49,18 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	if (+vscode.version.match(/1\.(\d+)/)![1] >= 46) { // only with >=1.46... (todo need to improve with semver check 2.x..)
-		context.subscriptions.push(vscode.window.registerCustomEditorProvider('vsc-webshark.pcap',
-			new WebsharkViewReadonlyEditorProvider(reporter, treeDataProvider, _onDidChangeSelectedTime, context, activeViews, (r) => {
-				const idx = activeViews.indexOf(r);
-				console.log(` WebsharkViewReadonlyEditorProvider callback dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
-				if (idx >= 0) {
-					activeViews.splice(idx, 1);
-				}
-			}),
-			{
-				webviewOptions: { retainContextWhenHidden: true, },
-				supportsMultipleEditorsPerDocument: false
-			}));
-	} else {
-		console.log(`disabled direct open support via CustomEditorProvider due to old vscode version ${vscode.version}`);
-	}
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider('vsc-webshark.pcap',
+		new WebsharkViewReadonlyEditorProvider(reporter, treeDataProvider, _onDidChangeSelectedTime, context, activeViews, (r) => {
+			const idx = activeViews.indexOf(r);
+			console.log(` WebsharkViewReadonlyEditorProvider callback dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
+			if (idx >= 0) {
+				activeViews.splice(idx, 1);
+			}
+		}),
+		{
+			webviewOptions: { retainContextWhenHidden: true, },
+			supportsMultipleEditorsPerDocument: false
+		}));
 
 	// register our command to open pcap files in webshark view:
 	context.subscriptions.push(vscode.commands.registerCommand('webshark.openFile', async () => {
