@@ -2,6 +2,12 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.9.3]
+- fixed extension version log
+
+## [0.9.2]
+- changed mac/ip filterstep default to ignore icmp packets.
+
 ## [0.9.1]
 - Updated package dependencies to newer versions.
 
