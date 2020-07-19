@@ -2,6 +2,9 @@
 
 All notable changes to the "vsc-webshark" extension will be documented in this file.
 
+## [0.9.4]
+- updated dependencies after github security advisory
+
 ## [0.9.3]
 - fixed extension version log
 
