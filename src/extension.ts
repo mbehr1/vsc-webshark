@@ -22,7 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const extension = vscode.extensions.getExtension(extensionId);
 
 	if (extension) {
-		const extensionVersion = extension.packageJSON.extensionVersion;
+		const extensionVersion = extension.packageJSON.version;
 		// the aik is not really sec_ret. but lets avoid bo_ts finding it too easy:
 		const strKE = 'ZjJlMDA4NTQtNmU5NC00ZDVlLTkxNDAtOGFiNmIzNTllODBi';
 		const strK = Buffer.from(strKE, "base64").toString();
