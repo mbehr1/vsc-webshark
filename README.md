@@ -8,7 +8,7 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
 
 **Note:** The **time-sync** feature works well with [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.smart-log?color=green&label=smart-log&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.smart-log) extension and [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/mbehr1.dlt-logs?color=green&label=dlt-logs&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=mbehr1.dlt-logs) for DLT (diagnostic log and trace) files.
 
-**Note:** It's acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
+**Note:** It acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
 
 **Note:** Currently I do find "sharkd" for Windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
 
@@ -78,6 +78,9 @@ Little documentation.
 ## Release Notes
 
 See [Changelog](./CHANGELOG.md)
+
+[![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
+![release](https://github.com/mbehr1/vsc-webshark/workflows/Semantic%20Release%20and%20Publish/badge.svg)
 
 ## Contributions
 
