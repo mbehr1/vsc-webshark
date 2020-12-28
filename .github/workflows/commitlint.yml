@@ -1,0 +1,15 @@
+name: Lint Commit Messages
+on:
+  push:
+    # release.yml workflow does it already there.
+    branches-ignore:
+      - master
+      - gh-pages
+  pull_request:
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
