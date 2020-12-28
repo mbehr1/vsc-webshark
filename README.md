@@ -86,6 +86,8 @@ Open an [issue](https://github.com/mbehr1/vsc-webshark/issues) or create a pull 
 
 [![Donations](https://www.paypalobjects.com/en_US/DK/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2ZNMJP5P43QQN&source=url) Donations are welcome!
 
+[GitHub ♥︎ Sponsors are welcome!](https://github.com/sponsors/mbehr1)
+
 ## Third-party Content
 
 This project leverages the following third party content:
