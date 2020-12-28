@@ -1,6 +1,6 @@
 function logPostMsg(msg) {
     console.log('logPostMsg:' + msg);
-    vscode.postMessage({ message: 'losgPostMsg:' + msg });
+    vscode.postMessage({ message: 'logPostMsg:' + msg });
 }
 
 let sharkdReqId = 0;
