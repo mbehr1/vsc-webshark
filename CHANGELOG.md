@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.0.1](https://github.com/mbehr1/vsc-webshark/compare/v1.0.0...v1.0.1) (2020-12-28)
+
+
+### Bug Fixes
+
+* **logging:** typo in log message ([9967207](https://github.com/mbehr1/vsc-webshark/commit/9967207a80ba5a0acdb37984a204558fd2585819))
+
 ### [1.0.0]
 * promoted version to 1.0.0 to prepare for automatic semantic-release versioning. No functional changes.
 
