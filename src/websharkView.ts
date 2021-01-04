@@ -1,5 +1,5 @@
 /* --------------------
- * Copyright(C) Matthias Behr, 2020.
+ * Copyright(C) Matthias Behr, 2020 - 2021.
  */
 
 import * as vscode from 'vscode';
@@ -350,7 +350,7 @@ export class WebsharkView implements vscode.Disposable {
             // any messages to post?
             if (this._msgsToPost.length) {
                 let msg: any;
-                while (msg = this._msgsToPost.pop()) {
+                while (msg = this._msgsToPost.shift()) { // keep FIFO order
                     const msgCmd = msg.command;
                     this.panel?.webview.postMessage(msg).then((onFulFilled) => {
                         console.log(`WebsharkView.postMessage(${msgCmd}) queued ${onFulFilled}`);
