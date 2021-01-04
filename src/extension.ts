@@ -1,5 +1,5 @@
 /* --------------------
- * Copyright(C) Matthias Behr 2020.
+ * Copyright(C) Matthias Behr 2020 - 2021.
  */
 
 import * as vscode from 'vscode';
