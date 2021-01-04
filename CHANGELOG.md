@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.0.2](https://github.com/mbehr1/vsc-webshark/compare/v1.0.1...v1.0.2) (2021-01-04)
+
+
+### Bug Fixes
+
+* **webview:** keep FIFO order for queued msgs ([196c3a4](https://github.com/mbehr1/vsc-webshark/commit/196c3a4bef9c753153f607c307a1b8ed7012d8fc))
+
 ### [1.0.1](https://github.com/mbehr1/vsc-webshark/compare/v1.0.0...v1.0.1) (2020-12-28)
 
 
