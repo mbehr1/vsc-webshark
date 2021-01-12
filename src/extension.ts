@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { fileExists, WebsharkView, SharkdProcess, WebsharkViewSerializer, SelectedTimeData, WebsharkViewReadonlyEditorProvider } from './websharkView';
 import { TreeViewNode, TreeViewProvider } from './treeViewProvider';
-import { filterPcap, extractDlt } from './filterPcap';
+import { filterPcap, extractDlt, removeTecmp } from './filterPcap';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
@@ -125,6 +125,18 @@ export function activate(context: vscode.ExtensionContext) {
 					console.log(`webshark.extractDlt got #URIs=${uris.length}`);
 					if (reporter) { reporter.sendTelemetryEvent("extract dlt", undefined, { 'err': 0 }); }
 					extractDlt(uris);
+				}
+			}
+		);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('webshark.removeTecmp', async () => {
+		return vscode.window.showOpenDialog({ canSelectFiles: true, canSelectFolders: false, canSelectMany: true, filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] }, openLabel: 'Select pcap file to remove TECMP headers from...' }).then(
+			async (uris: vscode.Uri[] | undefined) => {
+				if (uris && uris.length > 0) {
+					console.log(`webshark.removeTecmp got #URIs=${uris.length}`);
+					if (reporter) { reporter.sendTelemetryEvent("removeTecmp", undefined, { 'err': 0 }); }
+					removeTecmp(uris);
 				}
 			}
 		);

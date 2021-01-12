@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as tshark from './tshark';
 import { QuickInputHelper, PickItem } from './quickPick';
+import * as path from 'path';
 
 const platformWin32: boolean = process.platform === "win32";
 const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
@@ -201,7 +202,7 @@ function getTSharkArgs(steps: readonly any[]): string[][] {
 };
 
 
-async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void) {
+async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, steps: readonly object[], execFunction: (steps: readonly object[], saveUri: vscode.Uri) => void, noSteps = false) {
 
     console.log(`execFilterPcap(${uris.map(v => v.toString()).join(',')}) with ${steps?.length} steps...`);
 
@@ -350,8 +351,8 @@ async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, 
     }
 
     // steps done. now save (if last step has results)
-    if (steps.length > 0) {
-        const lastStep: any = steps[steps.length - 1];
+    if (steps.length > 0 || noSteps) {
+        const lastStep: any = noSteps ? { results: true } : steps[steps.length - 1];
         if (lastStep.results !== undefined) {
             let doRetry;
             do {
@@ -371,4 +372,136 @@ async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, 
         }
     }
     console.log(`filterPcap() done`);
+}
+
+export async function removeTecmp(uris: readonly vscode.Uri[]) {
+    const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.removeTecmpSteps');
+    const extractArgs = vscode.workspace.getConfiguration().get<Array<string>>('vsc-webshark.removeTecmpArgs');
+
+    const extension = vscode.extensions.getExtension('mbehr1.vsc-webshark');
+
+    console.log(`removeTecmp(${uris.map(v => v.toString()).join(',')}) with ${confSteps?.length} steps... ext path=${extension?.extensionPath}`);
+
+    if (confSteps === undefined || confSteps.length < 0) {
+        vscode.window.showErrorMessage('please check your vsc-webshark.removeTecmpSteps configuration! None defined.', { modal: true });
+        return;
+    }
+    if (extractArgs === undefined || extractArgs.length === 0) {
+        vscode.window.showErrorMessage('please check your vsc-webshark.removeTecmpArgs configuration! None defined.', { modal: true });
+        return;
+    }
+
+    // check whether extractArgs contain:
+    // ${{media/tecmpraw.lua}}"  and replace with path to media/tecmpraw.lua
+    for (let i = 0; i < extractArgs.length; ++i) {
+        let arg = extractArgs[i];
+        arg = arg.replace(/\$\{\{(.*?)\}\}/g, (sub, p) => {
+            return path.join(extension ? extension.extensionPath : '.', p);
+        });
+        if (arg !== extractArgs[i]) {
+            console.log(` replaced '${extractArgs[i]}' with '${arg}'`);
+            extractArgs[i] = arg;
+        }
+    }
+
+    const steps: object[] = [...confSteps];
+
+    return execFilterPcap(uris, '_woTecmp.pcap', steps, (steps: readonly object[], saveUri: vscode.Uri) => {
+        let tsharkArgs: string[][] = getTSharkArgs(steps);
+        // we add the specific args here:
+        tsharkArgs.push(extractArgs);
+        if (tsharkArgs.length) {
+            vscode.window.withProgress(
+                { cancellable: true, location: vscode.ProgressLocation.Notification, title: `removing TECMP to ${saveUri.toString()}` },
+                async (progress, cancelToken) => {
+                    let nrMsgs = 0;
+                    // create the file:
+                    let saveFile = fs.openSync(saveUri.fsPath, 'w'); // todo rmove for exportDlt???,  fs.createWriteStream(saveUri.fsPath, { encoding: "binary" });
+
+                    // run tshark:
+                    const tp = new tshark.TSharkDataProvider(tsharkArgs, uris.map(v => v.fsPath));
+
+                    // global pcap header:
+                    /* typedef struct pcap_hdr_s {
+                        guint32 magic_number;    magic number
+                        guint16 version_major;   major version number
+                        guint16 version_minor;   minor version number
+                        gint32  thiszone;        GMT to local correction
+                        guint32 sigfigs;         accuracy of timestamps
+                        guint32 snaplen;         max length of captured packets, in octets
+                        guint32 network;         data link type
+                        } pcap_hdr_t; */
+
+                    const globalHeader = Buffer.allocUnsafe(6 * 4);
+                    globalHeader.writeUInt32LE(0xa1b2c3d4, 0); // microsec header
+                    globalHeader.writeUInt16LE(0x2, 4);
+                    globalHeader.writeUInt16LE(0x4, 6);
+                    globalHeader.writeUInt32LE(0x0, 8);
+                    globalHeader.writeUInt32LE(0x0, 12);
+                    globalHeader.writeUInt32LE(65535, 16);
+                    globalHeader.writeUInt32LE(0x1, 20);
+                    fs.writeSync(saveFile, globalHeader);
+
+                    /* record (packet) header
+                    typedef struct pcaprec_hdr_s {
+                        guint32 ts_sec;         timestamp seconds
+                        guint32 ts_usec;        timestamp microseconds
+                        guint32 incl_len;       number of octets of packet saved in file
+                        guint32 orig_len;       actual length of packet
+                    } pcaprec_hdr_t; */
+                    const recordHeader = Buffer.alloc(4 * 4);
+
+                    tp.onDidChangeData((lines: readonly string[]) => {
+                        //console.log(`onDidChangeData(lines.length=${lines.length}`);
+                        for (let i = 0; i < lines.length; ++i) {
+                            // console.log(`onDidChangeData line='${lines[i]}'`);
+                            const line = lines[i].split('\t');
+
+                            const [strSeconds, strMicros] = line[0].split('.');
+                            const seconds = Number(strSeconds);
+                            const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
+                            if (line[1].length > 1) {
+                                // or optimize to avoid constant reallocs.
+                                const bufPayload = Buffer.from(line[1], "hex");
+                                // console.log(`onDidChangeData line1.length='${line[1].length}', buyPayload.length=${bufPayload.length}`);
+                                // Timestamp: uint32 seconds uint32 micros
+                                recordHeader.writeUInt32LE(seconds, 0); // todo secs
+                                recordHeader.writeUInt32LE(micros, 4); // nsecs
+                                recordHeader.writeUInt32LE(bufPayload.length, 8);
+                                recordHeader.writeUInt32LE(bufPayload.length, 12);
+                                const res = fs.writeSync(saveFile, recordHeader);
+                                const res2 = fs.writeSync(saveFile, bufPayload);
+                                console.assert(res === recordHeader.length && res2 === bufPayload.length, 'packet writeSync failed');
+                                nrMsgs++;
+                            }
+                        }
+                    });
+
+                    let wasCancelled = false;
+                    cancelToken.onCancellationRequested(() => {
+                        console.log(`extracting cancelled.`);
+                        wasCancelled = true;
+                        tp.dispose();
+                    });
+                    progress.report({ message: `Removing TECMP headers...` });
+                    let interval = setInterval(() => {
+                        var stats = fs.statSync(saveUri.fsPath);
+                        const fileSize = stats["size"] / (1000 * 1000);
+                        progress.report({ message: `Removing TECMP ... generated ${nrMsgs} frames and ${Math.round(fileSize)}MB` });
+                    }, 1000); // todo could add number of seconds running as well
+                    await tp.done().then((res: number) => {
+                        fs.closeSync(saveFile);
+                        saveFile = -1;
+                        vscode.window.showInformationMessage(`successfully extracted ${nrMsgs} frames to file '${saveUri.toString()}'`);
+                    }).catch((err) => {
+                        console.log(`got err:${err}`);
+                        vscode.window.showErrorMessage(`Removing TECMP failed with err=${err}`, { modal: true });
+                        fs.closeSync(saveFile);
+                        saveFile = -1;
+                    });
+                    clearInterval(interval);
+                }
+            );
+        }
+    }, true);
 }
