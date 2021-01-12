@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [1.1.0](https://github.com/mbehr1/vsc-webshark/compare/v1.0.2...v1.1.0) (2021-01-12)
+
+
+### Features
+
+* **removetecmp:** first poc of remove TECMP enscapsulation ([f3b05c1](https://github.com/mbehr1/vsc-webshark/commit/f3b05c186f2da5c0cdac8b8048d4f225004ddc86))
+
 ### [1.0.2](https://github.com/mbehr1/vsc-webshark/compare/v1.0.1...v1.0.2) (2021-01-04)
 
 
