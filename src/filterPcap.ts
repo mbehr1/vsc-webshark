@@ -104,7 +104,7 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                 async (progress, cancelToken) => {
                     let nrMsgs = 0;
                     // create the file:
-                    const saveFile = fs.createWriteStream(saveUri.fsPath, { encoding: "binary" });
+                    let saveFile = fs.openSync(saveUri.fsPath, 'w'); 
 
                     // run tshark:
                     const tp = new tshark.TSharkDataProvider(tsharkArgs, uris.map(v => v.fsPath));
@@ -123,8 +123,8 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                             // Timestamp: uint32 seconds sint32 micros
                             bufStorageHeader.writeUInt32LE(seconds, 4);
                             bufStorageHeader.writeInt32LE(micros, 8);
-                            saveFile.write(bufStorageHeader);
-                            saveFile.write(bufPayload);
+                            fs.writeFileSync(saveFile, bufStorageHeader);
+                            fs.writeFileSync(saveFile, bufPayload);
                             nrMsgs++;
                         }
                     });
@@ -134,6 +134,8 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                         console.log(`extracting cancelled.`);
                         wasCancelled = true;
                         tp.dispose();
+                        fs.closeSync(saveFile);
+                        saveFile = -1;
                     });
                     progress.report({ message: `Extracting DLT...` });
                     let interval = setInterval(() => {
@@ -142,9 +144,12 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                         progress.report({ message: `Extracting DLT generated ${nrMsgs} msgs and ${Math.round(fileSize)}MB` });
                     }, 1000); // todo could add number of seconds running as well
                     await tp.done().then((res: number) => {
-                        saveFile.close();
+                        fs.closeSync(saveFile);
+                        saveFile = -1;
                         vscode.window.showInformationMessage(`successfully extracted ${nrMsgs} DLT msgs to file '${saveUri.toString()}'`);
                     }).catch((err) => {
+                        fs.closeSync(saveFile);
+                        saveFile = -1;
                         console.log(`got err:${err}`);
                         vscode.window.showErrorMessage(`extracting DLT failed with err=${err}`, { modal: true });
                     });
