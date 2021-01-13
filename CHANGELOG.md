@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.1.1](https://github.com/mbehr1/vsc-webshark/compare/v1.1.0...v1.1.1) (2021-01-13)
+
+
+### Bug Fixes
+
+* **extractdlt:** use sync file ops ([e1294fb](https://github.com/mbehr1/vsc-webshark/commit/e1294fba2d9b429352c6e7a5d3fff9f8a656c405))
+
 ## [1.1.0](https://github.com/mbehr1/vsc-webshark/compare/v1.0.2...v1.1.0) (2021-01-12)
 
 
