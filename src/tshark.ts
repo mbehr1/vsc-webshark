@@ -11,6 +11,15 @@ let _nextTSharkdId = 1;
 const platformWin32: boolean = process.platform === "win32";
 const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
 
+function escapeShellChars(aString: string): string {
+    if (platformWin32) { // < > ( ) & | , ; " escape with ^
+        // for now not escape & | " 
+        return aString.replace(/\<|\>|\(|\),/g, '^$&');
+    } else { // for now we dont escape as the display filter is already within single quotes
+        return aString;
+    }
+}
+
 function getTsharkFullPath(): string {
     const confTshark = vscode.workspace.getConfiguration().get<string>('vsc-webshark.tsharkFullPath');
     const tsharkFullPath: string = confTshark ? confTshark : 'tshark';
@@ -53,7 +62,9 @@ export class TSharkProcess implements vscode.Disposable {
         let localTsharkArgs: string[][] = [];
         for (let i = 0; i < tsharkArgs.length; ++i) {
             const innerArr = tsharkArgs[i];
-            localTsharkArgs.push([...innerArr]);
+            // do we need to do any escaping of shell chars?
+            const newInnerArr = [...innerArr].map(e => escapeShellChars(e));
+            localTsharkArgs.push(newInnerArr);
         }
 
         const haveMultipleInFiles: boolean = _inFiles.length > 1;
