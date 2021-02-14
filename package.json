@@ -175,6 +175,10 @@
 									"type": "string",
 									"description": "Tshark filter field that will be used with the first column results from the listProvider."
 								},
+								"filterOp": {
+									"type": "string",
+									"description": "Optional operator to be used to compare filterField. If not specified '==' is used."
+								},
 								"filterArgs": {
 									"type": "array",
 									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",

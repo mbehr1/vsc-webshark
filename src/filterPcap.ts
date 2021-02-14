@@ -177,7 +177,7 @@ function getFilterExpr(stepData: any, items: readonly PickItem[] | string): stri
             } else {
                 filter += stepData.filterField;
             }
-            filter += `==${item.data.key}`;
+            filter += `${stepData.filterOp ? stepData.filterOp : '=='}${item.data.key}`;
         }
 
         if (stepData.filterNegate !== undefined && stepData.filterNegate && filter.length > 0) {
