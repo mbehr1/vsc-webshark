@@ -235,9 +235,19 @@ export class TSharkListProvider implements vscode.Disposable {
 
     private _tshark: TSharkDataProvider;
     private _expectHeader: boolean = true; // for now we do always expect the query with -E header=y
+    private _groupFn?: Function; // ((col0: string) => string);
     public headers: string[] = [];
 
-    constructor(tsharkArgs: ReadonlyArray<ReadonlyArray<string>>, private _valueMapper: ((key: string, value: string) => string[]) | null = null, private _inFiles: readonly string[] = [], private _outFile: string = '') {
+    constructor(tsharkArgs: ReadonlyArray<ReadonlyArray<string>>,
+        private _options: {
+            valueMapper?: ((key: string, value: string) => string[]),
+            groupBy?: { groupFn: string /*((col0: string) => string)*/, justOneValue?: boolean }
+        } | null = null,
+        private _inFiles: readonly string[] = [], private _outFile: string = '') {
+        if (_options?.groupBy?.groupFn?.length) {
+            this._groupFn = new Function('col0', _options.groupBy.groupFn);
+            console.warn(`using groupFn=`, this._groupFn);
+        }
         this._tshark = new TSharkDataProvider(tsharkArgs, _inFiles, _outFile);
         this._tshark.onDidChangeData(this.onData.bind(this));
     }
@@ -260,51 +270,58 @@ export class TSharkListProvider implements vscode.Disposable {
                     case 2:
                     case 3:
                         {
-                            const dataSet = this.data.map.get(parts[0]);
+                            const group = this._groupFn ? this._groupFn(parts[0]) : parts[0];
+                            const dataSet = this.data.map.get(group);
                             if (!dataSet) {
                                 let obj: any = {};
+                                // if we group by we do add a "_firstKey" with the orig value
+                                // this is used e.g. if we want to group by frame_epoch but need a real frame time as key
+                                if (this._groupFn) { obj._firstKey = parts[0]; }
+
                                 obj[this.headers.length > 0 ? this.headers[0] : 'f0'] = parts[0];
                                 if (parts.length >= 2) {
                                     let key: string = this.headers.length > 1 ? this.headers[1] : 'f1';
                                     let value: string = parts[1];
-                                    if (this._valueMapper) {
-                                        [key, value] = this._valueMapper(key, value);
+                                    if (this._options?.valueMapper) {
+                                        [key, value] = this._options.valueMapper(key, value);
                                     };
                                     if (key.length > 0) { obj[key] = [value]; }
                                 }
                                 if (parts.length >= 3) {
                                     let key: string = this.headers.length > 2 ? this.headers[2] : 'f2';
                                     let value: string = parts[2];
-                                    if (this._valueMapper) {
-                                        [key, value] = this._valueMapper(key, value);
+                                    if (this._options?.valueMapper) {
+                                        [key, value] = this._options.valueMapper(key, value);
                                     };
                                     if (key.length > 0) { obj[key] = [value]; }
                                 }
-                                this.data.map.set(parts[0], obj);
+                                this.data.map.set(group, obj);
                                 didChange = true;
                             } else {
-                                if (parts.length >= 2) {
-                                    // check whether f1 contains parts1 already:
-                                    let key: string = this.headers.length > 1 ? this.headers[1] : 'f1';
-                                    let value: string = parts[1];
-                                    if (this._valueMapper) {
-                                        [key, value] = this._valueMapper(key, value);
-                                    };
-                                    if (key.length > 0 && !dataSet[key].includes(value)) {
-                                        dataSet[key].push(value);
-                                        didChange = true;
+                                if (!(this._options?.groupBy?.justOneValue)) {
+                                    if (parts.length >= 2) {
+                                        // check whether f1 contains parts1 already:
+                                        let key: string = this.headers.length > 1 ? this.headers[1] : 'f1';
+                                        let value: string = parts[1];
+                                        if (this._options?.valueMapper) {
+                                            [key, value] = this._options.valueMapper(key, value);
+                                        };
+                                        if (key.length > 0 && !dataSet[key].includes(value)) {
+                                            dataSet[key].push(value);
+                                            didChange = true;
+                                        }
                                     }
-                                }
-                                if (parts.length >= 3) {
-                                    // check whether f2 contains parts2 already:
-                                    let key: string = this.headers.length > 2 ? this.headers[2] : 'f2';
-                                    let value: string = parts[2];
-                                    if (this._valueMapper) {
-                                        [key, value] = this._valueMapper(key, value);
-                                    };
-                                    if (key.length > 0 && !dataSet[key].includes(value)) {
-                                        dataSet[key].push(value);
-                                        didChange = true;
+                                    if (parts.length >= 3) {
+                                        // check whether f2 contains parts2 already:
+                                        let key: string = this.headers.length > 2 ? this.headers[2] : 'f2';
+                                        let value: string = parts[2];
+                                        if (this._options?.valueMapper) {
+                                            [key, value] = this._options.valueMapper(key, value);
+                                        };
+                                        if (key.length > 0 && !dataSet[key].includes(value)) {
+                                            dataSet[key].push(value);
+                                            didChange = true;
+                                        }
                                     }
                                 }
                             }

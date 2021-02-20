@@ -237,7 +237,8 @@ async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, 
     const updateQuickPick = function (stepData: any, data: tshark.ListData, items: PickItem[], quickPick: vscode.QuickPick<PickItem>, selectedItems: PickItem[] | undefined = undefined): void {
         stepData.listProviderData = data; // store in case we'd like to go back
         //console.log(`got ListData map.size=${data.map.size}`);
-        data.map.forEach((value, key) => {
+        data.map.forEach((value, mapKey) => {
+            const key = value._firstKey || mapKey;
             const oldItemIdx = items.findIndex((value) => {
                 if (value?.data?.key === key) { return true; }
                 return false;
@@ -298,7 +299,7 @@ async function execFilterPcap(uris: readonly vscode.Uri[], saveFileExt: string, 
             // add the tsharkArgs from previous steps:
             let tsharkArgs = getTSharkArgs(steps.slice(0, s));
             tsharkArgs = tsharkArgs.concat(stepData.listProvider);
-            tsharkLP = new tshark.TSharkListProvider(tsharkArgs, null, uris.map(u => u.fsPath)); // todo mapper
+            tsharkLP = new tshark.TSharkListProvider(tsharkArgs, stepData.listProviderOptions || null, uris.map(u => u.fsPath));
             quickPick.busy = true;
 
             tsharkLP.onDidChangeData((data: tshark.ListData) => {

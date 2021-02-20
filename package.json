@@ -167,6 +167,26 @@
 										}
 									}
 								},
+								"listProviderOptions": {
+									"type": "object",
+									"description": "Optional options for the list provider. Currently 'groupBy' is supported. See example.",
+									"properties": {
+										"groupBy": {
+											"type": "object",
+											"description": "Options to group items. E.g. frame time per min.",
+											"properties": {
+												"groupFn": {
+													"type": "string",
+													"description": "Javascript function body that has to return a string based on parameter 'col0'. E.g. 'return Math.trunc(Number(col0)/30).toString()'"
+												},
+												"justOneValue": {
+													"type": "boolean",
+													"description": "Determines whether just the first value creating the group should be kept or all values. Set to 'true' e.g. for frame time grouping."
+												}
+											}
+										}
+									}
+								},
 								"listIcon": {
 									"type": "string",
 									"description": "Optional codicon icon for the provided elements."
