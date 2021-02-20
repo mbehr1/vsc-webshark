@@ -1,5 +1,13 @@
 # Change log for 'vsc-webshark':
 
+## [1.2.0](https://github.com/mbehr1/vsc-webshark/compare/v1.1.2...v1.2.0) (2021-02-20)
+
+
+### Features
+
+* **filter:** add filterOp to filterSteps ([f7515eb](https://github.com/mbehr1/vsc-webshark/commit/f7515ebb51ed74a757708a1e4b394248fabb5ec8))
+* **filterpcap:** add listProviderOptions groupBy ([742f33b](https://github.com/mbehr1/vsc-webshark/commit/742f33be12c4f8c905899d4229ff89ed89ade238))
+
 ### [1.1.2](https://github.com/mbehr1/vsc-webshark/compare/v1.1.1...v1.1.2) (2021-02-14)
 
 
