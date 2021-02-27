@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as tshark from './tshark';
 import { QuickInputHelper, PickItem } from './quickPick';
 import * as path from 'path';
+import { DltFileWriter } from './dltFileWriter';
 
 const platformWin32: boolean = process.platform === "win32";
 const separator = platformWin32 ? '"' : "'"; // win cmd uses ", unix sh uses '
@@ -103,14 +104,11 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                 { cancellable: true, location: vscode.ProgressLocation.Notification, title: `extracting DLT to ${saveUri.toString()}` },
                 async (progress, cancelToken) => {
                     let nrMsgs = 0;
-                    // create the file:
-                    let saveFile = fs.openSync(saveUri.fsPath, 'w'); 
+                    // create the file writer:
+                    const dltFileWriter = new DltFileWriter('pcap', saveUri.fsPath);
 
                     // run tshark:
                     const tp = new tshark.TSharkDataProvider(tsharkArgs, uris.map(v => v.fsPath));
-                    const bufStorageHeader = Buffer.alloc(16);
-                    bufStorageHeader.writeUInt32LE(0x01544c44, 0); // DLT+0x01 (0x44 0x4c 0x54 0x01)
-                    bufStorageHeader.write('pcap', 12, 4, "ascii"); // ECU ID four chars (we hardcode to pcap)
 
                     tp.onDidChangeData((lines: readonly string[]) => {
                         //console.log(`onDidChangeData(lines.length=${lines.length}`);
@@ -120,11 +118,7 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                             const seconds = Number(strSeconds);
                             const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
                             const bufPayload = Buffer.from(line[1], "hex");
-                            // Timestamp: uint32 seconds sint32 micros
-                            bufStorageHeader.writeUInt32LE(seconds, 4);
-                            bufStorageHeader.writeInt32LE(micros, 8);
-                            fs.writeFileSync(saveFile, bufStorageHeader);
-                            fs.writeFileSync(saveFile, bufPayload);
+                            dltFileWriter.writeRaw(seconds, micros, bufPayload);
                             nrMsgs++;
                         }
                     });
@@ -134,8 +128,7 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                         console.log(`extracting cancelled.`);
                         wasCancelled = true;
                         tp.dispose();
-                        fs.closeSync(saveFile);
-                        saveFile = -1;
+                        dltFileWriter.dispose();
                     });
                     progress.report({ message: `Extracting DLT...` });
                     let interval = setInterval(() => {
@@ -144,12 +137,10 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                         progress.report({ message: `Extracting DLT generated ${nrMsgs} msgs and ${Math.round(fileSize)}MB` });
                     }, 1000); // todo could add number of seconds running as well
                     await tp.done().then((res: number) => {
-                        fs.closeSync(saveFile);
-                        saveFile = -1;
+                        dltFileWriter.dispose();
                         vscode.window.showInformationMessage(`successfully extracted ${nrMsgs} DLT msgs to file '${saveUri.toString()}'`);
                     }).catch((err) => {
-                        fs.closeSync(saveFile);
-                        saveFile = -1;
+                        dltFileWriter.dispose();
                         console.log(`got err:${err}`);
                         vscode.window.showErrorMessage(`extracting DLT failed with err=${err}`, { modal: true });
                     });
