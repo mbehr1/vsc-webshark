@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [1.3.0](https://github.com/mbehr1/vsc-webshark/compare/v1.2.0...v1.3.0) (2021-05-01)
+
+
+### Features
+
+* **dlt export:** add TECMP UART/RS232_RAW ([d10fb38](https://github.com/mbehr1/vsc-webshark/commit/d10fb38adfc28c93e0fbbe54fac927f300edca6b))
+
 ## [1.2.0](https://github.com/mbehr1/vsc-webshark/compare/v1.1.2...v1.2.0) (2021-02-20)
 
 
