@@ -292,12 +292,44 @@
 						],
 						"description": "Steps offered for the 'Filter pcap file...' function"
 					},
+					"vsc-webshark.extractDltMethods": {
+						"type": "array",
+						"items": {
+							"type": "object"
+						},
+						"description": "Array with the different methods/ways for extracting DLT from pcap. If multiple are configured the user is asked which one should be executed.",
+						"default": [
+							{
+								"name": "UDP DLT",
+								"steps": "vsc-webshark.extractDltSteps",
+								"tSharkArgs": "vsc-webshark.extractDltArgs"
+							},
+							{
+								"name": "TECMP UART/RS232_RAW encapsulated DLS,STDHDR",
+								"options": {
+									"searchDls": true,
+									"payloadInByte": [
+										1,
+										2
+									]
+								},
+								"tSharkArgs": [
+									"-n",
+									"--enable-protocol tecmp",
+									"-d ethertype==8336,tecmp",
+									"-e frame.time_epoch -e tecmp.payload.data",
+									"-T fields",
+									"-Y tecmp.data_type==0x0011"
+								]
+							}
+						]
+					},
 					"vsc-webshark.extractDltArgs": {
 						"type": "array",
 						"items": {
 							"type": "string"
 						},
-						"description": "Arguments used for tshark. Should contain timestamp as epoch and hexdump of dlt message payload",
+						"description": "Deprecated: Configure directly as extractDltMethods.tSharkArgs (see example). Arguments used for tshark. Should contain timestamp as epoch and hexdump of dlt message payload",
 						"default": [
 							"-n",
 							"--disable-protocol dlt",
@@ -414,7 +446,7 @@
 								]
 							}
 						],
-						"description": "Steps offered for the 'Extract DLT from pcap file...' function"
+						"description": "Deprecated: Configure directly as extractDltMethods.steps (see example). Steps offered for the 'Extract DLT from pcap file...' function"
 					},
 					"vsc-webshark.removeTecmpArgs": {
 						"type": "array",

@@ -78,22 +78,65 @@ export async function filterPcap(uris: readonly vscode.Uri[]) {
 }
 
 
+// the configuration options for exportDLT are two fold:
+// first: extractDltMethods: array with (second):
+//  name
+//  steps : string (for backwards compat with the name of an option) or array with the steps
+//  tSharkArgs : string (for backwards compat. with the name of an option) or array with the args
+//  options: 
+//   searchDls -> search for DLS header (so treat as stream)
+//   payloadInByte -> array with modulus,size (e.g. 1,2 to use every 2nd byte only)
+interface MethodConfiguration {
+    name: string,
+    steps: string | any[] | undefined,
+    tSharkArgs: string | string[],
+    options?: {
+        searchDls?: boolean,
+        payloadInByte?: number[]
+    }
+}
+
 export async function extractDlt(uris: readonly vscode.Uri[]) {
-    const confSteps = vscode.workspace.getConfiguration().get<Array<any>>('vsc-webshark.extractDltSteps');
-    const extractArgs = vscode.workspace.getConfiguration().get<Array<string>>('vsc-webshark.extractDltArgs');
-
-    console.log(`extractDlt(${uris.map(v => v.toString()).join(',')}) with ${confSteps?.length} steps...`);
-
-    if (confSteps === undefined || confSteps.length === 0) {
-        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltSteps configuration! None defined.', { modal: true });
+    const confMethods = vscode.workspace.getConfiguration().get<Array<MethodConfiguration>>('vsc-webshark.extractDltMethods');
+    if (confMethods === undefined || !Array.isArray(confMethods) || confMethods.length === 0) {
+        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltMethods configuration! None defined.', { modal: true });
         return;
     }
+
+    if (confMethods.length > 1) {
+        // show quickPick: todo
+        const quickPick = QuickInputHelper.createQuickPick("select DLT extract method:", undefined, undefined);
+        quickPick.canSelectMany = false;
+        quickPick.ignoreFocusOut = false;
+        const items: PickItem[] = confMethods.map((cm) => { const pi = new PickItem(); pi.name = cm.name; pi.data = cm; return pi; });
+        quickPick.items = items;
+        await QuickInputHelper.show(quickPick).then((value) => {
+            if (Array.isArray(value) && value.length === 1) {
+                quickPick.dispose();
+                return extractDltMethod(uris, value[0].data);
+            } else {
+                console.warn(`can't handle selected method:`, value);
+            }
+        }, () => {
+            console.log(`aborted selection of method`);
+        });
+    } else {
+        return extractDltMethod(uris, confMethods[0]);
+    }
+}
+
+async function extractDltMethod(uris: readonly vscode.Uri[], confMethod: MethodConfiguration) {
+    const confSteps = typeof confMethod.steps === 'string' ? vscode.workspace.getConfiguration().get<Array<any>>(confMethod.steps) : confMethod.steps;
+    const extractArgs = typeof confMethod.tSharkArgs === 'string' ? vscode.workspace.getConfiguration().get<Array<string>>(confMethod.tSharkArgs) : confMethod.tSharkArgs;
+
+    console.log(`extractDlt(${uris.map(v => v.toString()).join(',')}) with method:'${confMethod.name}' ${confSteps?.length} steps...`);
+
     if (extractArgs === undefined || extractArgs.length === 0) {
-        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltArgs configuration! None defined.', { modal: true });
+        vscode.window.showErrorMessage('please check your vsc-webshark.exportDltArgs/.extractDltMethods.tSharkArgs configuration! None defined.', { modal: true });
         return;
     }
 
-    const steps: object[] = [...confSteps];
+    const steps: object[] = Array.isArray(confSteps) ? [...confSteps] : [];
 
     return execFilterPcap(uris, '_extracted.dlt', steps, (steps: readonly object[], saveUri: vscode.Uri) => {
         let tsharkArgs: string[][] = getTSharkArgs(steps);
@@ -109,8 +152,9 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
 
                     // run tshark:
                     const tp = new tshark.TSharkDataProvider(tsharkArgs, uris.map(v => v.fsPath));
+                    const [payLoadInByteModulus, payloadInByteSize] = confMethod?.options?.payloadInByte || [0, 1];
 
-                    tp.onDidChangeData((lines: readonly string[]) => {
+                    const processRawPayload = (lines: readonly string[]) => {
                         //console.log(`onDidChangeData(lines.length=${lines.length}`);
                         for (let i = 0; i < lines.length; ++i) {
                             const line = lines[i].split('\t');
@@ -118,10 +162,62 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                             const seconds = Number(strSeconds);
                             const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
                             const bufPayload = Buffer.from(line[1], "hex");
-                            dltFileWriter.writeRaw(seconds, micros, bufPayload);
+                            dltFileWriter.writeRaw(seconds, micros, payloadInByteSize > 1 ? Buffer.from(bufPayload.filter((v, i) => i % payloadInByteSize === payLoadInByteModulus)) : bufPayload);
                             nrMsgs++;
                         }
-                    });
+                    };
+
+                    let dltMsgBuffer: Buffer | undefined;
+                    const processDlsPayload = (lines: readonly string[]) => {
+                        let lastSeconds: number = 0;
+                        let lastMicros: number = 0;
+                        //console.log(`onDidChangeData(lines.length=${lines.length}`);
+                        for (let i = 0; i < lines.length; ++i) {
+                            const line = lines[i].split('\t');
+                            const [strSeconds, strMicros] = line[0].split('.');
+                            const seconds = Number(strSeconds);
+                            const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
+                            lastSeconds = seconds; // todo time from tecmp? but not really needed as the dlt has timestamp anyhow...
+                            lastMicros = micros;
+                            const bufPayload = Buffer.from(line[1], "hex");
+                            // the UART/RS232_RAW data is weirdly stored:
+                            if (payloadInByteSize > 1) {
+                                // payloadInByteSize bytes per byte
+                                const bufPayload2 = Buffer.from(bufPayload.filter((v, i) => i % payloadInByteSize === payLoadInByteModulus));
+                                dltMsgBuffer = Buffer.concat(dltMsgBuffer ? [dltMsgBuffer, bufPayload2] : [bufPayload2]);
+                            } else {
+                                dltMsgBuffer = Buffer.concat(dltMsgBuffer ? [dltMsgBuffer, bufPayload] : [bufPayload]);
+                            }
+                        }
+                        // now process as many messages from the buffer as possible:
+
+                        // messages are again weirdly stored: 
+                        // DLS1 (dlt serial header), then no storage header but directly the standard header:
+                        // search for DLS header first:
+                        // skip data until next DLS header:
+                        if (dltMsgBuffer) {
+                            let skipped = 0;
+                            while (dltMsgBuffer.length >= 4 + 4) {// dlt serial header + standard header:
+                                if (dltMsgBuffer.readUInt32BE(0) === 0x444c5301) {
+                                    if (skipped) { console.log(`extractDlt found DLS header (skipped=${skipped})`); }
+                                    skipped = 0;
+                                    // now we expect a standard header:
+                                    const stdHdrLen = dltMsgBuffer.readUInt16BE(4 + 2);
+                                    // do we have this len as well?
+                                    if (dltMsgBuffer.length >= 4 + 2 + 2 + stdHdrLen) {
+                                        dltFileWriter.writeRaw(lastSeconds, lastMicros, dltMsgBuffer.slice(4, 4 + stdHdrLen));
+                                        nrMsgs++;
+                                        dltMsgBuffer = dltMsgBuffer?.slice(4 + stdHdrLen);
+                                    } else { break; }
+                                } else {
+                                    dltMsgBuffer = dltMsgBuffer?.slice(1);
+                                    ++skipped;
+                                }
+                            }
+                        }
+                    };
+
+                    tp.onDidChangeData(confMethod?.options?.searchDls ? processDlsPayload : processRawPayload);
 
                     let wasCancelled = false;
                     cancelToken.onCancellationRequested(() => {
@@ -148,7 +244,7 @@ export async function extractDlt(uris: readonly vscode.Uri[]) {
                 }
             );
         }
-    });
+    }, true);
 }
 
 function getFilterExpr(stepData: any, items: readonly PickItem[] | string): string {
