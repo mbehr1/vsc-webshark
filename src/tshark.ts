@@ -135,7 +135,7 @@ export class TSharkProcess implements vscode.Disposable {
         this._proc.on('close', (code) => {
             console.log(`TsharkProcess(${this.id}) closed with: ${code}`);
             this.running = false;
-            this._donePromises.forEach((p) => p(code));
+            this._donePromises.forEach((p) => p(code || 0));
             this._donePromises = [];
         });
         this._proc.stderr?.on('data', (data) => {
