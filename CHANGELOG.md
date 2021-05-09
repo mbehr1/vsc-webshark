@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.3.1](https://github.com/mbehr1/vsc-webshark/compare/v1.3.0...v1.3.1) (2021-05-09)
+
+
+### Bug Fixes
+
+* use 0 instead of undefined on close ([284fa72](https://github.com/mbehr1/vsc-webshark/commit/284fa726fcd49892f08da9a048fcb00d2854eaf6))
+
 ## [1.3.0](https://github.com/mbehr1/vsc-webshark/compare/v1.2.0...v1.3.0) (2021-05-01)
 
 
