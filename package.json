@@ -550,6 +550,7 @@
 		}
 	},
 	"scripts": {
+		"prepare": "husky install",
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
 		"lint": "eslint src --ext ts",
@@ -570,25 +571,20 @@
 		"@typescript-eslint/parser": "^3.6.1",
 		"eslint": "^7.5.0",
 		"glob": "^7.1.6",
-		"husky": "^4.3.6",
+		"husky": "^6.0.0",
 		"mocha": "^7.2.0",
 		"semantic-release": "^17.3.0",
 		"semantic-release-vsce": "^3.0.1",
-		"typescript": "^3.9.7",
-		"vscode-test": "^1.4.0"
+		"typescript": "^4.2.4",
+		"vscode-test": "^1.5.2"
 	},
 	"dependencies": {
-		"vscode-extension-telemetry": "^0.1.6"
+		"vscode-extension-telemetry": "^0.1.7"
 	},
 	"commitlint": {
 		"extends": [
 			"@commitlint/config-conventional"
 		]
-	},
-	"husky": {
-		"hooks": {
-			"commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
-		}
 	},
 	"release": {
 		"branches": [

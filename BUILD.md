@@ -53,19 +53,21 @@ We use the config in the package.json (as we use git hooks ... later as well):
   }
 ```
 
-Husky is used for easy git commit hooks on local setup:
+Husky v6 is used for easy git commit hooks on local setup:
 ```sh
-yarn add -D husky
-or
 npm install --save-dev husky
+or 
+yarn add -D husky
 ```
 and activated in package.json as well:
 ```json
-"husky": {
-    "hooks": {
-      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
-    }
-  }
+"scripts": {
+  "prepare": "husky install",
+  ...
+```
+and
+```sh
+npx husky add .husky/commit-msg 'npx --no-install commitlint --edit "$1"' 
 ```
 
 activated as github action (see file `.github/workflows/commitlint.yml`)
