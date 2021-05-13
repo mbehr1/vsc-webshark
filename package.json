@@ -33,7 +33,20 @@
 	"main": "./out/extension.js",
 	"capabilities": {
 		"untrustedWorkspaces": {
-			"supported": false
+			"supported": "limited",
+			"description": "Configuration settings for external tools should come from a trusted workspace only. Same for events where a calculation function can be specified.",
+			"restrictedConfigurations": [
+				"vsc-webshark.sharkdFullPath",
+				"vsc-webshark.tsharkFullPath",
+				"vsc-webshark.mergecapFullPath",
+				"vsc-webshark.filterSteps",
+				"vsc-webshark.events",
+				"vsc-webshark.extractDltMethods",
+				"vsc-webshark.extractDltArgs",
+				"vsc-webshark.extractDltSteps",
+				"vsc-webshark.removeTecmpArgs",
+				"vsc-webshark.removeTecmpSteps"
+			]
 		}
 	},
 	"contributes": {
