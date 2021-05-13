@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [1.4.0](https://github.com/mbehr1/vsc-webshark/compare/v1.3.1...v1.4.0) (2021-05-13)
+
+
+### Features
+
+* no support in untrusted workspaces ([a6591df](https://github.com/mbehr1/vsc-webshark/commit/a6591dff75df367cc23c4883c8d6e87c422b413e)), closes [#5](https://github.com/mbehr1/vsc-webshark/issues/5)
+
 ### [1.3.1](https://github.com/mbehr1/vsc-webshark/compare/v1.3.0...v1.3.1) (2021-05-09)
 
 
