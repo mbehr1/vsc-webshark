@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.5.1](https://github.com/mbehr1/vsc-webshark/compare/v1.5.0...v1.5.1) (2021-05-13)
+
+
+### Bug Fixes
+
+* opt out for virtual workspaces ([5efbe46](https://github.com/mbehr1/vsc-webshark/commit/5efbe46c8c22b75245467541f6c5a6531918afa6))
+
 ## [1.5.0](https://github.com/mbehr1/vsc-webshark/compare/v1.4.0...v1.5.0) (2021-05-13)
 
 
