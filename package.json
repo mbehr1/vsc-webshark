@@ -32,6 +32,7 @@
 	],
 	"main": "./out/extension.js",
 	"capabilities": {
+		"virtualWorkspaces": false,
 		"untrustedWorkspaces": {
 			"supported": "limited",
 			"description": "Configuration settings for external tools should come from a trusted workspace only. Same for events where a calculation function can be specified.",
