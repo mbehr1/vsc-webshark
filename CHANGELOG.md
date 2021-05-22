@@ -1,5 +1,13 @@
 # Change log for 'vsc-webshark':
 
+## [1.6.0](https://github.com/mbehr1/vsc-webshark/compare/v1.5.1...v1.6.0) (2021-05-22)
+
+
+### Features
+
+* add icons to treeview for files and events folder ([49c12b4](https://github.com/mbehr1/vsc-webshark/commit/49c12b40610c7a5624fb8345f6629450afb19621))
+* configurable columns ([011a9d4](https://github.com/mbehr1/vsc-webshark/commit/011a9d4d15ab7856c39b4541cdecb6e7a93d070c)), closes [#6](https://github.com/mbehr1/vsc-webshark/issues/6)
+
 ### [1.5.1](https://github.com/mbehr1/vsc-webshark/compare/v1.5.0...v1.5.1) (2021-05-13)
 
 
