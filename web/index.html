@@ -58,6 +58,7 @@
 		var g_ws_convs = [];
 
 		var g_ws_absTimeColIdx = -1;
+		var g_ws_allColumns = null;
 
 		var g_ws_pref = {};
 
@@ -362,6 +363,51 @@
 			}
 		}
 
+		function updateColumnsConfig(newCols, newColWidths) {
+			//var columns_default = ["%m", "%t", "%s", "%d", "%p", "%L", "%i"];
+			var columns_title = [];
+			var columns_width = [];
+			var columns_pref = [];
+
+			for (var col = 0; col < g_ws_pref.columns.length; col++) {
+				var col_title = "";
+				var col_format = "";
+				var col_format_idx = -1;
+
+				for (col_title in newCols[col]) { col_format = newCols[col][col_title]; }
+				columns_title.push(col_title);
+				columns_width.push(newColWidths[col_format]);
+
+				//					if (col >= columns_default.length || columns_default[col] != col_format) {
+				//						g_webshark.setColumns(columns_pref);
+				//					}
+
+				/* map from column format to integer */
+				for (var col_map = 0; col_map < g_ws_allColumns.length; col_map++) {
+					if (g_ws_allColumns[col_map].format == col_format) {
+						col_format_idx = col_map;
+					}
+				}
+
+				if (col_format_idx != -1)
+					columns_pref.push(col_format_idx);
+				else
+					columns_pref.push(col_format);
+			}
+
+			// column idx for %Yut { COL_UTC_YMD_TIME, "UTC date, as YYYY-MM-DD, and time" },
+			for (var col_map = 0; col_map < g_ws_allColumns.length; col_map++) {
+				if (g_ws_allColumns[col_map].format === '%Yut') {
+					g_ws_absTimeColIdx = col_map;
+					break;
+				}
+			}
+
+			g_webshark.setColumns(columns_pref);
+			g_webshark_packet_list.setColumns(columns_title, columns_width);
+			g_webshark.invalidCacheFrames();
+		}
+
 		function render_interval(new_mode) {
 			g_webshark_interval.mode = new_mode;
 			g_webshark_interval.render_interval();
@@ -442,7 +488,24 @@
 								// this doesn't select it. for selecting: sthg like window.webshark.webshark_load_frame(message.frame, true); but delayed
 							}
 							break;
-
+						case 'config update': // config update, either at start or if config changes
+							{
+								console.log("eventListener 'config update' config keys=" + Object.keys(message.config).join(','));
+								const configData = message.config;
+								var updateColumns = false;
+								if ('columns' in configData) {
+									g_ws_pref.columns = configData['columns'];
+									updateColumns = true;
+								}
+								if ('columns_width' in configData) {
+									g_ws_pref.columns_width = configData['columns_width'];
+									updateColumns = true;
+								}
+								if (updateColumns && g_ws_allColumns !== null) { // only if initial load took place yet
+									updateColumnsConfig(g_ws_pref.columns, g_ws_pref.columns_width);
+								}
+							}
+							break;
 					}
 				} catch (err) {
 					console.error('eventListener message got error ' + err);
@@ -492,9 +555,7 @@
 					contentId: 'ws_bytes_dump'
 				});
 
-				vscode.postMessage({ message: 'log load_preferences()...' });
-				load_preferences();
-				vscode.postMessage({ message: 'log ... load_preferences()' });
+				load_preferences(); // will be overwritten by a later message 'update config'
 
 				g_webshark = new window.webshark.Webshark();
 
@@ -515,54 +576,14 @@
 						g_ws_convs = data['convs'];
 						g_ws_ftypes = data['ftypes'];
 
-						var columns_default = ["%m", "%t", "%s", "%d", "%p", "%L", "%i"];
-						var columns_title = [];
-						var columns_width = [];
-						var columns_pref = [];
-
 						document.title = document.title.replace("${WEBSHARK_VER}", data['version']);
 						console.log('load document.title=' + document.title);
-
 						setup_user_toolbar(data['user']);
 						console.log('load data[user]=' + JSON.stringify(data['user']));
-						for (var col = 0; col < g_ws_pref.columns.length; col++) {
-							var col_title = "";
-							var col_format = "";
-							var col_format_idx = -1;
 
-							for (col_title in g_ws_pref.columns[col]) { col_format = g_ws_pref.columns[col][col_title]; }
-							columns_title.push(col_title);
-							columns_width.push(g_ws_pref.columns_width[col_format]);
+						g_ws_allColumns = data['columns'];
+						updateColumnsConfig(g_ws_pref.columns, g_ws_pref.columns_width);
 
-							if (col >= columns_default.length || columns_default[col] != col_format) {
-								g_webshark.setColumns(columns_pref);
-							}
-
-							/* map from column format to integer */
-							var ws_d_columns = data['columns'];
-							for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
-								if (ws_d_columns[col_map].format == col_format) {
-									col_format_idx = col_map;
-								}
-
-							}
-
-							if (col_format_idx != -1)
-								columns_pref.push(col_format_idx);
-							else
-								columns_pref.push(col_format);
-						}
-
-						// column idx for %Yut { COL_UTC_YMD_TIME, "UTC date, as YYYY-MM-DD, and time" },
-						var ws_d_columns = data['columns'];
-						for (var col_map = 0; col_map < ws_d_columns.length; col_map++) {
-							if (ws_d_columns[col_map].format === '%Yut') {
-								g_ws_absTimeColIdx = col_map;
-								break;
-							}
-						}
-
-						g_webshark_packet_list.setColumns(columns_title, columns_width);
 						run();
 					});
 			} catch (err) {

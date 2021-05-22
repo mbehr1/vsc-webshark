@@ -51,6 +51,8 @@ This extension contributes the following settings:
 * `vsc-webshark.sharkdFullPath`: Specifies the absolute path incl filename to the sharkd binary. This needs to be set after installation.
 * `vsc-webshark.tsharkFullPath`: Specifies the absolute path incl filename to the tshark binary. Defaults to 'tshark'. Needs to be set after installation if tshark is not reachable via search path.
 * `vsc-webshark.mergecapFullPath`: Specifies the absolute path incl filename to the mergecap binary. Defaults to 'mergecap'. Needs to be set after installation if mergecap is not reachable via search path.
+* `vsc-webshark.columns`: Defines the columns shown. Uses the format strings as defined e.g. here [wireshark github](https://github.com/wireshark/wireshark/blob/66accecf3e8530647937b094fb3c9a3b93dfa28e/epan/column.c#L33) (see readable strings a few lines [below](https://github.com/wireshark/wireshark/blob/66accecf3e8530647937b094fb3c9a3b93dfa28e/epan/column.c#L120)). If not provided default values are used.
+* `vsc-webshark.columnsWidths`: Defines the width for the columns. If not provided default values are used.
 * `vsc-webshark.events`: Defined **events** used for time-sync event detection.
   * Tree-view events need to have:
     * `level` > 0 and

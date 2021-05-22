@@ -90,6 +90,49 @@
 			{
 				"title": "VSC-Webshark",
 				"properties": {
+					"vsc-webshark.columns": {
+						"type": "array",
+						"description": "List of columns shown in webview. Each item is an object with title as key and wireshark format as value.",
+						"items": {
+							"type": "object",
+							"title": "column config"
+						},
+						"default": [
+							{
+								"No.": "%m"
+							},
+							{
+								"Time": "%t"
+							},
+							{
+								"Source": "%s"
+							},
+							{
+								"Destination": "%d"
+							},
+							{
+								"Protocol": "%p"
+							},
+							{
+								"Length": "%L"
+							},
+							{
+								"Info": "%i"
+							}
+						]
+					},
+					"vsc-webshark.columnsWidths": {
+						"type": "object",
+						"description": "Object defining the columns width. Keys are the wireshark formats, value is the width in px.",
+						"default": {
+							"%m": 100,
+							"%t": 119,
+							"%s": 262,
+							"%d": 262,
+							"%p": 95,
+							"%L": 82
+						}
+					},
 					"vsc-webshark.sharkdFullPath": {
 						"type": "string",
 						"default": "sharkd",

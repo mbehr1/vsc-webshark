@@ -430,6 +430,10 @@ export class WebsharkView implements vscode.Disposable {
         }
 
         this.postMsgOnceAlive({ command: 'ready' });
+        // send config (could remove the ready)
+        const configColumns = <any[]>(vscode.workspace.getConfiguration().get("vsc-webshark.columns"));
+        const configColumnsWidths = <any>(vscode.workspace.getConfiguration().get("vsc-webshark.columnsWidths"));
+        this.onConfigColumnsChange(configColumns, configColumnsWidths);
 
         // start the 2nd sharkd process last:
         this._sharkd2 = new SharkdProcess(this._sharkd.sharkdPath);
@@ -501,6 +505,33 @@ export class WebsharkView implements vscode.Disposable {
         if (idx >= 0) { this._treeViewProvider.treeRootNodes.splice(idx, 1); this._treeViewProvider.updateNode(null); }
 
         this.callOnDispose(this);
+    }
+
+    onConfigColumnsChange(configColumns: any[], configColumnsWidths: any) {
+        this.postMsgOnceAlive({
+            command: 'config update', config: {
+                columns_width: configColumnsWidths && typeof configColumnsWidths === 'object' ? configColumnsWidths :
+                    { // see https://github.com/wireshark/wireshark/blob/20800366ddbbb2945491120afe7265796c26bf11/epan/column.c
+                        '%m': 1.7 * 59,
+                        '%t': 1.7 * 70, // %At for abs time 94,
+                        '%s': 1.7 * 154,
+                        '%d': 1.7 * 154,
+                        '%p': 1.7 * 56,
+                        '%L': 1.7 * 48,
+                        // '%i'
+                    },
+                columns: configColumns && Array.isArray(configColumns) && configColumns.length > 0 ? configColumns :
+                    [
+                        { "No.": "%m" },
+                        { "Time": "%t" },
+                        { "Source2": "%s" },
+                        { "Destination": "%d" },
+                        { "Protocol": "%p" },
+                        { "Length": "%L" },
+                        { "Info": "%i" },
+                    ],
+            }
+        });
     }
 
     postMsgOnceAlive(msg: any) {
@@ -686,6 +717,11 @@ export class WebsharkView implements vscode.Disposable {
         if (affected) {
             if (ev.affectsConfiguration("vsc-webshark.events") && this._firstInfosLoaded) {
                 this.scanForEvents();
+            }
+            if (ev.affectsConfiguration("vsc-webshark.columns") || ev.affectsConfiguration("vsc-webshark.columnsWidths")) {
+                const configColumns = <any[]>(vscode.workspace.getConfiguration().get("vsc-webshark.columns"));
+                const configColumnsWidths = <any>(vscode.workspace.getConfiguration().get("vsc-webshark.columnsWidths"));
+                this.onConfigColumnsChange(configColumns, configColumnsWidths);
             }
         }
     }
