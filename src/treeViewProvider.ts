@@ -20,11 +20,15 @@ export class TreeViewNode {
     contextValue?: string;
     command?: vscode.Command;
     time?: Date;
+    icon?: vscode.ThemeIcon;
 
-    constructor(label: string, parent: TreeViewNode | null) {
+    constructor(label: string, parent: TreeViewNode | null, icon: string | null = null) {
         this.id = createUniqueId();
         this.label = label;
         this.parent = parent;
+        if (icon) {
+            this.icon = new vscode.ThemeIcon(icon);
+        }
     }
 };
 
@@ -53,7 +57,7 @@ export class TreeViewProvider implements vscode.TreeDataProvider<TreeViewNode>, 
             contextValue: element.contextValue,
             command: element.command,
             collapsibleState: element.children.length ? vscode.TreeItemCollapsibleState.Collapsed : void 0,
-            iconPath: /* (element.children.length === 0 && element.label.startsWith("xy")) ? path.join(__filename, '..', '..', 'media', 'root-folder.svg') : */ undefined // todo!
+            iconPath: element.icon
         };
     }
     public getChildren(element?: TreeViewNode): TreeViewNode[] | Thenable<TreeViewNode[]> {

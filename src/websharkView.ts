@@ -288,8 +288,8 @@ export class WebsharkView implements vscode.Disposable {
     constructor(panel: vscode.WebviewPanel | undefined, private context: vscode.ExtensionContext, private treeViewProvider: TreeViewProvider, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private uri: vscode.Uri, private _sharkd: SharkdProcess, activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
 
         this._treeViewProvider = treeViewProvider;
-        this._treeNode = new TreeViewNode(path.basename(uri.fsPath), null);
-        this._eventsNode = new TreeViewNode('events', this._treeNode);
+        this._treeNode = new TreeViewNode(path.basename(uri.fsPath), null, 'file-binary');
+        this._eventsNode = new TreeViewNode('events', this._treeNode, 'symbol-event');
         this._treeNode.children.push(this._eventsNode);
 
         treeViewProvider.treeRootNodes.push(this._treeNode);
