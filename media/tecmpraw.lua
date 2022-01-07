@@ -27,7 +27,7 @@ function p_tecmpraw.dissector (buf, pkt, root)
         -- print("\nfound data_type:", data_type)
 
         buf_len =buf:len()
-        payload_length = f_payload_length().value+4 -- todo of buf.len-4?
+        payload_length = f_payload_length().value -- not needed with tecmp 3.4.9 or higher +4
         -- print("\n tecmp.payload.length:", payload_length, " buf:len()=", buf_len)
 
         -- return as raw data the last payload_length part:

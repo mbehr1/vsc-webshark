@@ -519,6 +519,7 @@
 						"default": [
 							"-n",
 							"--enable-protocol tecmp",
+							"--enable-protocol tecmp.payload",
 							"-d ethertype==8336,tecmpraw",
 							"-X lua_script:${{media/tecmpraw.lua}}",
 							"-e frame.time_epoch -e rawdata",
