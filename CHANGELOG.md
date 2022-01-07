@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [1.7.0](https://github.com/mbehr1/vsc-webshark/compare/v1.6.0...v1.7.0) (2022-01-07)
+
+
+### Features
+
+* **remove_tecmp:** adjust to newer dissector ([c94fcbc](https://github.com/mbehr1/vsc-webshark/commit/c94fcbc0b967c14b4b515d2080047135a1edd381))
+
 ## [1.6.0](https://github.com/mbehr1/vsc-webshark/compare/v1.5.1...v1.6.0) (2021-05-22)
 
 
