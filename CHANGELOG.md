@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [1.7.1](https://github.com/mbehr1/vsc-webshark/compare/v1.7.0...v1.7.1) (2022-09-09)
+
+
+### Bug Fixes
+
+* **tecmp:** support 0x99fe (orig) ethertype as well ([69abcc2](https://github.com/mbehr1/vsc-webshark/commit/69abcc25d280941ae79ff5bbc1a6f7a03546bbd1))
+
 ## [1.7.0](https://github.com/mbehr1/vsc-webshark/compare/v1.6.0...v1.7.0) (2022-01-07)
 
 
