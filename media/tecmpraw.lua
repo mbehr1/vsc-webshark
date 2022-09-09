@@ -1,5 +1,5 @@
 -- poc / very basic dissector allow access to the TECMP encaps. packet data
--- (c) Matthias Behr, 2021
+-- (c) Matthias Behr, 2021-2022
 
 -- create myproto protocol and its fields
 local p_tecmpraw = Proto("tecmpraw", "TECMP raw payload dissector by mbehr1");
@@ -37,6 +37,9 @@ function p_tecmpraw.dissector (buf, pkt, root)
         subtree:add(f_data, buf(buf_len-payload_length,payload_length))
     end
 end
+
+-- set ourself as new dissector for default tecmp as well
+eth_table:set(0x99fe, p_tecmpraw)
 
 -- subscribe for Ethernet packets on type 8336 (0x2090).
 eth_table:add(8336, p_tecmpraw)
