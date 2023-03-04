@@ -594,15 +594,15 @@
 			var load_req =
 			{
 				req: 'frame',
-				bytes: 'yes',
-				proto: 'yes',
+				bytes: true, // 'yes',
+				proto: true, // 'yes',
 				frame: framenum
 			};
 
 			var ref_framenum = g_webshark.getRefFrame(framenum);
 			if (ref_framenum)
 				load_req['ref_frame'] = ref_framenum;
-			load_req['prev_frame'] = framenum - 1;   /* TODO */
+			load_req['prev_frame'] = false; // framenum - 1;   /* TODO */
 
 			webshark_json_get(load_req,
 				function (data) {
@@ -942,17 +942,32 @@
 
 			window.webshark.webshark_json_get(check_req,
 				function (data) {
-					var txt = data['filter'];
-
-					if (that.mode == 'field')
-						txt = data['field'];
-
-					if (txt == 'ok')
-						el.className = 'ws_gui_text_valid';
-					else if (txt == 'deprecated')
-						el.className = 'ws_gui_text_deprecated';
-					else
+					console.log(`check filter got:${JSON.stringify(data)}`);
+					if ('error' in data) {
 						el.className = 'ws_gui_text_invalid';
+					} else {
+						if ('status' in data) {
+							const txt = data.status;
+							if (txt == 'OK')
+								el.className = 'ws_gui_text_valid';
+							else if (txt == 'deprecated') // can't tell. crashes currently with https://gitlab.com/wireshark/wireshark/-/issues/18886
+								el.className = 'ws_gui_text_deprecated';
+							else
+								el.className = 'ws_gui_text_invalid';
+						} else {
+							var txt = data['filter'];
+
+							if (that.mode == 'field')
+								txt = data['field'];
+
+							if (txt == 'ok')
+								el.className = 'ws_gui_text_valid';
+							else if (txt == 'deprecated')
+								el.className = 'ws_gui_text_deprecated';
+							else
+								el.className = 'ws_gui_text_invalid';
+						}
+					}
 				});
 		};
 

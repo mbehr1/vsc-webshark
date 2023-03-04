@@ -12,7 +12,7 @@ let _nextSharkdId = 1;
 
 const platformWin32: boolean = process.platform === "win32";
 const platformNewline: string = platformWin32 ? "\r\n" : "\n"; // what a mess... sharkd on win (or cmd) translates newlines into \r\n
-const platformDoubleNewLine = platformWin32 ? "\r\n\r\n" : "\n\n"; // only needed to parse output, input is accepted with single newline
+const platformDoubleNewLine = platformWin32 ? "\r\n" : "\n"; // only needed to parse output, input is accepted with single newline
 const platformDoubleNewLineLen = platformDoubleNewLine.length;
 
 export function fileExists(filePath: string) {
@@ -88,12 +88,12 @@ export class SharkdProcess implements vscode.Disposable {
             do {
                 gotObj = false;
                 if (this._partialResponse) {
-                    const crPos = this._partialResponse.indexOf(platformDoubleNewLine, undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line"
+                    const crPos = this._partialResponse.indexOf(platformDoubleNewLine, undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line (only prev 3.5 wireshark)"
                     if (crPos === 0) {
-                        console.log(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length} resp=${this._partialResponse.toString()}`);
+                        console.warn(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length} resp=${this._partialResponse.toString()}`);
                         if (this._partialResponse.length > 1) {
                             // remove the leading \n
-                            this._partialResponse = this._partialResponse?.slice(crPos + 2);
+                            this._partialResponse = this._partialResponse?.slice(crPos + platformDoubleNewLineLen);
                             gotObj = true; // and parse the rest.
                         } else {
                             this._partialResponse = null;
@@ -112,6 +112,7 @@ export class SharkdProcess implements vscode.Disposable {
                             }
                         } catch (err) {
                             // we can't parse, so keep the buffer.
+                            console.warn(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse!.length} got err=${err} partialResponse=${this._partialResponse?.toString()}`);
                         }
                     }
                 }
@@ -129,9 +130,10 @@ export class SharkdProcess implements vscode.Disposable {
                 // console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
                 if (this._dataTimeout) {
                     clearTimeout(this._dataTimeout);
+                    this._dataTimeout = null;
                 }
                 this._dataTimeout = setTimeout(() => {
-                    if (this._onDataFunction) { this._onDataFunction([{}]); }
+                    if (this._onDataFunction) { this._onDataFunction([{ error: { code: 3, message: 'timeout' } }]); }
                 }, 60000);
             }
         });
@@ -150,10 +152,14 @@ export class SharkdProcess implements vscode.Disposable {
     }
 
     sendRequest(req: string) {
-        this._proc.stdin?.write(`${req}\n`);
+        if (!this._proc.stdin) {
+            console.error(`SharkdProcess.sendRequest called but proc.stdin null!`);
+        } else {
+            this._proc.stdin.write(`${req}\n`);
+        }
     }
     sendRequestObj(req: object) {
-        this._proc.stdin?.write(`${JSON.stringify(req)}\n`);
+        this.sendRequest(JSON.stringify(req));
     }
 
 }
@@ -260,7 +266,7 @@ export class WebsharkView implements vscode.Disposable {
     private _pendingResponses: ResponseData[] = [];
 
     private _sharkd2: SharkdProcess; // we keep a 2nd for indexing in parallel...
-    private _sharkd2Cbs: { startTime: number, req: any, cb: ((jsonObj: object) => void) }[] = [];
+    private _sharkd2Cbs: { id: number, startTime: number, req: any, cb: ((jsonObj: object) => void) }[] = [];
 
     // timer interval infos:
     private _sharkd2Info: any; // objected returned on 'info' request. Has columns,...
@@ -295,25 +301,27 @@ export class WebsharkView implements vscode.Disposable {
         treeViewProvider.treeRootNodes.push(this._treeNode);
         treeViewProvider.updateNode(this._treeNode, true, true);
 
-        this._pendingResponses.push({ startTime: Date.now(), id: -1 });
-        this._sharkd.sendRequestObj({ req: 'load', file: uri.fsPath });
-        /*this._pendingResponses.push({ startTime: Date.now(), id: -2 });
-        this._sharkd.stdin?.write(`{"req":"dumpconf"}\n`);*/
+        this._pendingResponses.push({ startTime: Date.now(), id: 1 });
+        this._sharkd.sendRequestObj({ method: 'load', params: { file: uri.fsPath }, jsonrpc: "2.0", id: 1 });
 
         this._sharkd._onDataFunction =
             (jsonObjs) => {
-                // console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
-                if (jsonObjs.length > 0) {
-                    do {
-                        const reqId = this._pendingResponses.shift();
-                        const jsonObj = jsonObjs.shift();
-                        if (reqId && reqId.id >= 0) {
-                            this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
-                            console.log(`WebsharkView sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
-                        } else {
-                            console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
-                        }
-                    } while (jsonObjs.length > 0);
+                try {
+                    // console.log(`WebsharkView sharkd got data len=${jsonObjs.length}`);
+                    if (jsonObjs.length > 0) {
+                        do {
+                            const reqId = this._pendingResponses.shift();
+                            const jsonObj = jsonObjs.shift();
+                            if (reqId && reqId.id > 1) { // 1 is used specifically
+                                this.postMsgOnceAlive({ command: "sharkd res", res: jsonObj, id: reqId.id });
+                                console.log(`WebsharkView sharkd req ${reqId.id} took ${Date.now() - reqId.startTime}ms`);
+                            } else {
+                                console.log(`WebsharkView sharkdCon got data for reqId=${reqId?.id} after ${Date.now() - (reqId ? reqId.startTime : 0)}ms, data=${JSON.stringify(jsonObj)}`);
+                            }
+                        } while (jsonObjs.length > 0);
+                    }
+                } catch (e) {
+                    console.warn(`WebsharkView sharkd got e=${e}`);
                 }
             };
 
@@ -360,24 +368,27 @@ export class WebsharkView implements vscode.Disposable {
             switch (e.message) {
                 case 'sharkd req':
                     try {
-                        console.log(`WebsharkView sharkd req(${e.id}/${e.req}) received`);
-                        const reqObj = JSON.parse(e.req);
-                        switch (reqObj.req) {
+                        console.log(`WebsharkView sharkd req(${e.id}/${e.req}) received`); // todo e.id is not equal to reqObj.id... (but should)
+                        const oldReq = JSON.parse(e.req);
+                        const reqObj = this.convertToWireshark35Req(oldReq);
+                        switch (oldReq.req) {
                             case 'files':
                                 console.log(`WebsharkView sharkd req "files" received`);
                                 // special handling. see counterpart in WSCaptureFilesTable.prototype.loadFiles
                                 let answerObj = {
-                                    'pwd': "home/mbehr",
-                                    'files': [{
-                                        'name': path.basename(uri.fsPath), 'dir': false, 'size': 100000,
-                                        'analysis': { 'first': 1000, 'last': 2000, 'frames': 500, 'protocols': ['tcp'] }
-                                    }]
+                                    result: {
+                                        'pwd': "home/mbehr",
+                                        'files': [{
+                                            'name': path.basename(uri.fsPath), 'dir': false, 'size': 100000,
+                                            'analysis': { 'first': 1000, 'last': 2000, 'frames': 500, 'protocols': ['tcp'] }
+                                        }]
+                                    }
                                 }; // todo can be removed
                                 this.postMsgOnceAlive({ command: "sharkd res", res: answerObj, id: e.id });
                                 break;
                             default:
                                 this._pendingResponses.push({ startTime: Date.now(), id: e.id });
-                                this._sharkd.sendRequest(e.req);
+                                this._sharkd.sendRequestObj(reqObj);
                         }
                     } catch (err) {
                         console.warn(`WebsharkView.onDidReceiveMessage sharkd req got err=${err}`, e);
@@ -441,8 +452,14 @@ export class WebsharkView implements vscode.Disposable {
             for (let i = 0; i < jsonObjs.length; ++i) {
                 const cb = this._sharkd2Cbs.shift();
                 if (cb !== undefined) {
-                    console.log(`WebsharkView sharkd2 req ${JSON.stringify(cb.req)} took ${Date.now() - cb.startTime}ms`);
-                    cb.cb(jsonObjs[i]);
+                    console.log(`WebsharkView sharkd2 req id ${cb.id} ${JSON.stringify(cb.req)} took ${Date.now() - cb.startTime}ms.`);
+                    if (cb.id !== jsonObjs[i].id) {
+                        console.error(`request/response id mismatch! ${cb.id} vs ${jsonObjs[i].id} for ${JSON.stringify(jsonObjs[i])}`);
+                        cb.cb({ error: { code: 2, message: `request/response id mismatch! ${cb.id} vs ${jsonObjs[i].id}` } });
+                    } else {
+                        // console.warn(`sharkd2 got response:${JSON.stringify(jsonObjs[i])}`);
+                        cb.cb(jsonObjs[i]);
+                    }
                 } else {
                     console.error(`WebsharkView sharkd2 got data but have no cb! obj=${JSON.stringify(jsonObjs[i])}`);
                 }
@@ -454,39 +471,51 @@ export class WebsharkView implements vscode.Disposable {
 
         this.sharkd2Request({ req: 'load', file: uri.fsPath }, (res: any) => {
             console.log(`WebsharkView sharkd2 'load file' got res=${JSON.stringify(res)}`);
-            if (res.err !== 0) {
-                console.error(`WebsharkView sharkd2 'load file' got err=${res.err}`);
+            if ('error' in res) {
+                console.error(`WebsharkView sharkd2 'load file' got error=${res.error}`);
                 // if not err: 0 we could e.g. kill and don't offer time services...
             }
 
             // load the column infos:
             this.sharkd2Request({ req: 'info' }, (res: any) => {
-                console.log(`WebsharkView sharkd2 'info' got sharkd version=${res.version}`);
-                this._sharkd2Info = res;
-                let idx = this.getColumnIdx('%Yut');
-                if (idx !== undefined) { this._utcTimeColumnIdx = idx; }
-                if (this._utcTimeColumnIdx < 0) {
-                    console.warn(`WebsharkView couldn't determine utc time column!`);
+                if ('error' in res) {
+                    console.warn(`WebsharkView sharkd2 'info' got error=${JSON.stringify(res)}`);
                 } else {
-                    // load the status info:
-                    this.sharkd2Request({ req: 'status' }, (res: any) => {
-                        console.log(`WebsharkView sharkd2 'status' res=${JSON.stringify(res)}`);
-                        this._fileStatus = res;
+                    console.log(`WebsharkView sharkd2 'info' got sharkd version=${res.result.version}`);
+                    this._sharkd2Info = res.result;
+                    let idx = this.getColumnIdx('%Yut');
+                    if (idx !== undefined) { this._utcTimeColumnIdx = idx; }
+                    if (this._utcTimeColumnIdx < 0) {
+                        console.warn(`WebsharkView couldn't determine utc time column!`);
+                    } else {
+                        // load the status info:
+                        this.sharkd2Request({ req: 'status' }, (res: any) => {
+                            if ('error' in res) {
+                                console.warn(`WebsharkView sharkd2 'status' got error=${JSON.stringify(res)}`);
+                            } else {
+                                console.log(`WebsharkView sharkd2 'status' res=${JSON.stringify(res.result)}`);
+                                this._fileStatus = res.result;
 
+                                // load the first frame to get the abs time reference:
+                                this.sharkd2Request({ req: 'frames', limit: 1, column0: this._utcTimeColumnIdx }, (res: any) => {
+                                    if ('error' in res) {
+                                        console.warn(`WebsharkView sharkd2 'frames' got error=${JSON.stringify(res)}`);
+                                    } else {
+                                        const result = res.result;
+                                        console.log(`WebsharkView sharkd2 'frames' got frame #${result[0].num} res=${JSON.stringify(result).slice(0, 200)}`);
+                                        this._firstFrame = result;
+                                        this._firstFrameTime = new Date(result[0].c[0]);
+                                        console.log(`WebsharkView firstFrameTime (non adjusted)=${this._firstFrameTime.toUTCString()}`);
 
-                        // load the first frame to get the abs time reference:
-                        this.sharkd2Request({ req: 'frames', limit: 1, column0: this._utcTimeColumnIdx }, (res: any) => {
-                            console.log(`WebsharkView sharkd2 'frames' got frame #${res[0].num} res=${JSON.stringify(res).slice(0, 200)}`);
-                            this._firstFrame = res;
-                            this._firstFrameTime = new Date(res[0].c[0]);
-                            console.log(`WebsharkView firstFrameTime (non adjusted)=${this._firstFrameTime.toUTCString()}`);
+                                        this._firstInfosLoaded = true;
+                                        this.updateTimeIndices(this._activeFilter);
 
-                            this._firstInfosLoaded = true;
-                            this.updateTimeIndices(this._activeFilter);
-
-                            this.scanForEvents();
+                                        this.scanForEvents();
+                                    }
+                                });
+                            }
                         });
-                    });
+                    }
                 }
             });
         });
@@ -545,14 +574,55 @@ export class WebsharkView implements vscode.Disposable {
         }
     };
 
+    convertToWireshark35Req(req: object) {
+        const reqId = ++this.lastReqId;
+
+        const newReq = {
+            method: '<unknown>',
+            params: {} as any,
+            jsonrpc: "2.0",
+            id: reqId
+        };
+        Object.entries(req).forEach(([key, value]) => {
+            if (key === 'req') {
+                newReq.method = value;
+            } else {
+                newReq.params[key] = value;
+            }
+        });
+        return newReq;
+    }
+
+    lastReqId: number = 0;
+
+    /**
+     * Send a request to sharkd.
+     * @param req object with req:string and other keys that form the params. Will be converted to new wireshark sharkd format
+     * @param cb function that will received the jsonrpc 2.0 response object from that request. Members:
+     *   jsonrpc, id and on success: result or on error: error object.
+     */
     sharkd2Request(req: object, cb: (res: object) => void) {
+        // starting with wireshark 3.5 the command syntax has been changed.
+        // instead of an object with req and the params inside it now needs an object with:
+        // method: (the former req)
+        // params: object with the parameters
+        // jsonrpc: "2.0"
+        // id: a pos number unique id per request
+        // we convert here with the following rules:
+        // req -> method
+        // all other keys -> params
+
+        const newReq = this.convertToWireshark35Req(req);
+
+        //console.warn(`sharkd2Request converted ${JSON.stringify(req)} to ${JSON.stringify(newReq)}`);
+
         this._sharkd2.ready().then((ready) => {
             if (ready) {
-                this._sharkd2.sendRequestObj(req);
-                this._sharkd2Cbs.push({ startTime: Date.now(), req: req, cb: cb });
+                this._sharkd2.sendRequestObj(newReq);
+                this._sharkd2Cbs.push({ id: newReq.id, startTime: Date.now(), req: req, cb: cb });
             } else {
                 console.error(`WebsharkView sharkd2 not ready for req ${JSON.stringify(req)}`);
-                cb({});
+                cb({ error: { code: 1, message: 'sharkd2 not ready' } });
             }
         });
     }
@@ -562,12 +632,17 @@ export class WebsharkView implements vscode.Disposable {
         let req: any = { req: 'intervals', interval: 1000 /* sec */ }; // todo if this ever gets too large we might have to add hours as interims.
         if (filter && filter.length > 0) { req.filter = filter; }
         this.sharkd2Request(req, (res: any) => {
-            console.log(`WebsharkView.updateTimeIndices got res for 'intervals' res=${JSON.stringify(res).slice(0, 100)}`);
-            console.log(`WebsharkView.updateTimeIndices  frames=${res.frames} last=${res.last} #intervals=${res.intervals.length}`);
-            this._timeIntsBySec = res;
-            // we add the filter info:
-            if (req.filter && req.filter.length > 0) { this._timeIntsBySec.filter = req.filter; }
-            vscode.window.showInformationMessage('time indices available'); // put into status bar item todo
+            if ('error' in res) {
+                console.warn(`WebsharkView sharkd2 'intervals' got error=${JSON.stringify(res)}`);
+            } else {
+                const result = res.result;
+                console.log(`WebsharkView.updateTimeIndices got result for 'intervals' result=${JSON.stringify(result).slice(0, 100)}`);
+                console.log(`WebsharkView.updateTimeIndices  frames=${result.frames} last=${result.last} #intervals=${result.intervals.length}`);
+                this._timeIntsBySec = result;
+                // we add the filter info:
+                if (req.filter && req.filter.length > 0) { this._timeIntsBySec.filter = req.filter; }
+                vscode.window.showInformationMessage('time indices available'); // put into status bar item todo
+            }
         });
     }
 
@@ -617,23 +692,28 @@ export class WebsharkView implements vscode.Disposable {
             // for now search via frames:
             // load the first frame to get the abs time reference:
             this.sharkd2Request({ req: 'frames', filter: this._activeFilter, skip: startIdx, limit: timeInts[i][1], column0: this._utcTimeColumnIdx }, (res: any) => {
-                console.log(`WebsharkView sharkd2 search 'frames' got frame #${res[0].num} res=${JSON.stringify(res).slice(0, 200)}`);
-                // iterate through all frames:
-                let j;
-                for (j = 0; j < res.length; ++j) {
-                    const frameTime = new Date(res[j].c[0]);
-                    if ((frameTime.valueOf() + this._timeAdjustMs) >= timeVal) {
-                        console.log(`WebsharkView.getFrameIdxForTime precise frame idx=${startIdx + j} time(not adj)=${frameTime.toUTCString()}.${frameTime.valueOf() % 1000}`);
-                        resolve(startIdx + j);
-                        return;
+                if ('error' in res) {
+                    console.warn(`WebsharkView sharkd2 'frames' got error=${JSON.stringify(res)}`);
+                } else {
+                    const result = res.result;
+                    console.log(`WebsharkView sharkd2 search 'frames' got frame #${result[0].num} result=${JSON.stringify(result).slice(0, 200)}`);
+                    // iterate through all frames:
+                    let j;
+                    for (j = 0; j < result.length; ++j) {
+                        const frameTime = new Date(result[j].c[0]);
+                        if ((frameTime.valueOf() + this._timeAdjustMs) >= timeVal) {
+                            console.log(`WebsharkView.getFrameIdxForTime precise frame idx=${startIdx + j} time(not adj)=${frameTime.toUTCString()}.${frameTime.valueOf() % 1000}`);
+                            resolve(startIdx + j);
+                            return;
+                        }
                     }
+                    if (startIdx + j >= this._fileStatus.frames) {
+                        console.warn(`WebsharkView.getFrameIdxForTime returning null (startIdx=${startIdx + j}>=${this._fileStatus.frames})`);
+                        resolve(null);
+                    }
+                    console.log(`WebsharkView.getFrameIdxForTime didnt found in frames. returning next one idx=${startIdx + j}.`);
+                    resolve(startIdx + j);
                 }
-                if (startIdx + j >= this._fileStatus.frames) {
-                    console.warn(`WebsharkView.getFrameIdxForTime returning null (startIdx=${startIdx + j}>=${this._fileStatus.frames})`);
-                    resolve(null);
-                }
-                console.log(`WebsharkView.getFrameIdxForTime didnt found in frames. returning next one idx=${startIdx + j}.`);
-                resolve(startIdx + j);
             });
         });
     }
@@ -779,67 +859,72 @@ export class WebsharkView implements vscode.Disposable {
                             req[`column${v + 2}`] = event.values[v];
                         }
                     }
-                    this.sharkd2Request(req, (res: any) => {
-                        console.log(`WebsharkView sharkd2 scan event #'${i}' got ${res.length} frames  res=${JSON.stringify(res).slice(0, 1000)}`);
-                        // by default we convert values by concating with ' '
-                        var convValuesFunction: Function = (arr: Array<string>) => { return arr.join(' '); };
-                        // but we can specify that as well:
-                        if (event.conversionFunction !== undefined) {
-                            convValuesFunction = Function("values", event.conversionFunction);
-                            console.warn(` using conversionFunction = '${convValuesFunction}'`);
-                        }
-
-                        for (let e = 0; e < res.length; ++e) {
-                            try {
-                                const frame = res[e];
-                                if (event.level > 0) {
-                                    // determine label:
-                                    let label: string = event.label !== undefined ? stringFormat(event.label, frame.c.slice(1)) : frame.c[1];
-                                    const node = new TreeViewNode(label, this._eventsNode);
-                                    node.time = new Date(frame.c[0]); // without timeadjust. we do this onDidChangeSelection... for now
-                                    eventsUnsorted.push({ num: frame.num, level: event.level, node: node });
-                                }
-                                if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
-                                    // store as timeSync
-                                    let timeSyncValue: string = frame.c.length > 2 ? (convValuesFunction(frame.c.slice(2)) /*frame.c.slice(2).join(' ')*/) : frame.c[1];
-                                    // not needed with conversionFunction timeSyncValue = timeSyncValue.toLowerCase();
-                                    let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
-                                    console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
-                                    this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
-                                }
-                            } catch (err) {
-                                console.error(`WebsharkView sharkd2 scan event #'${i}' got error '${err}' with idx '${e}'`);
+                    this.sharkd2Request(req, (reqRes: any) => {
+                        if ('error' in reqRes) {
+                            console.warn(`WebsharkView sharkd2 'frames' got error=${JSON.stringify(reqRes)}`);
+                        } else {
+                            const res = reqRes.result;
+                            console.log(`WebsharkView sharkd2 scan event #'${i}' got ${res.length} frames  res=${JSON.stringify(res).slice(0, 1000)}`);
+                            // by default we convert values by concating with ' '
+                            var convValuesFunction: Function = (arr: Array<string>) => { return arr.join(' '); };
+                            // but we can specify that as well:
+                            if (event.conversionFunction !== undefined) {
+                                convValuesFunction = Function("values", event.conversionFunction);
+                                console.warn(` using conversionFunction = '${convValuesFunction}'`);
                             }
-                        }
-                        console.log(`WebsharkView sharkd2 scan event #'${i}' finished got ${res.length} frames`);
-                        // todo move at the end... use proper Promise and wait for all to finish...
-                        if (i === events.length - 1) {
-                            // now sort the eventsUnsorted by num first:
-                            eventsUnsorted.sort((a, b) => a.num - b.num);
-                            // then move to proper level:
 
-                            const getParent = (level: number): TreeViewNode => {
-                                if (level === 1) {
-                                    return this._eventsNode;
-                                } else {
-                                    const parent = getParent(level - 1);
-                                    if (parent.children.length === 0) {
-                                        // create a dummy and return that one:
-                                        parent.children.push(new TreeViewNode(`(no parent level ${level - 1} event)`, parent));
+                            for (let e = 0; e < res.length; ++e) {
+                                try {
+                                    const frame = res[e];
+                                    if (event.level > 0) {
+                                        // determine label:
+                                        let label: string = event.label !== undefined ? stringFormat(event.label, frame.c.slice(1)) : frame.c[1];
+                                        const node = new TreeViewNode(label, this._eventsNode);
+                                        node.time = new Date(frame.c[0]); // without timeadjust. we do this onDidChangeSelection... for now
+                                        eventsUnsorted.push({ num: frame.num, level: event.level, node: node });
                                     }
-                                    return parent.children[parent.children.length - 1];
+                                    if (event.timeSyncId?.length > 0 && event.timeSyncPrio > 0) {
+                                        // store as timeSync
+                                        let timeSyncValue: string = frame.c.length > 2 ? (convValuesFunction(frame.c.slice(2)) /*frame.c.slice(2).join(' ')*/) : frame.c[1];
+                                        // not needed with conversionFunction timeSyncValue = timeSyncValue.toLowerCase();
+                                        let time = new Date(new Date(frame.c[0]).valueOf() + this._timeAdjustMs);
+                                        console.log(`WebsharkView sharkd2 scan event #'${i}' got timeSync '${event.timeSyncId}' with value '${timeSyncValue}'`);
+                                        this._timeSyncEvents.push({ id: event.timeSyncId, value: timeSyncValue, prio: event.timeSyncPrio, time: time });
+                                    }
+                                } catch (err) {
+                                    console.error(`WebsharkView sharkd2 scan event #'${i}' got error '${err}' with idx '${e}'`);
                                 }
-                            };
-
-                            for (let j = 0; j < eventsUnsorted.length; ++j) {
-                                const ev = eventsUnsorted[j];
-                                const parentNode = getParent(ev.level);
-                                parentNode.children.push(ev.node);
                             }
+                            console.log(`WebsharkView sharkd2 scan event #'${i}' finished got ${res.length} frames`);
+                            // todo move at the end... use proper Promise and wait for all to finish...
+                            if (i === events.length - 1) {
+                                // now sort the eventsUnsorted by num first:
+                                eventsUnsorted.sort((a, b) => a.num - b.num);
+                                // then move to proper level:
 
-                            vscode.window.showInformationMessage(`finished scanning for events. found ${eventsUnsorted.length}`); // put into status bar item todo
-                            this._treeViewProvider.updateNode(this._eventsNode);
-                            this.broadcastTimeSyncs();
+                                const getParent = (level: number): TreeViewNode => {
+                                    if (level === 1) {
+                                        return this._eventsNode;
+                                    } else {
+                                        const parent = getParent(level - 1);
+                                        if (parent.children.length === 0) {
+                                            // create a dummy and return that one:
+                                            parent.children.push(new TreeViewNode(`(no parent level ${level - 1} event)`, parent));
+                                        }
+                                        return parent.children[parent.children.length - 1];
+                                    }
+                                };
+
+                                for (let j = 0; j < eventsUnsorted.length; ++j) {
+                                    const ev = eventsUnsorted[j];
+                                    const parentNode = getParent(ev.level);
+                                    parentNode.children.push(ev.node);
+                                }
+
+                                vscode.window.showInformationMessage(`finished scanning for events. found ${eventsUnsorted.length}`); // put into status bar item todo
+                                this._treeViewProvider.updateNode(this._eventsNode);
+                                this.broadcastTimeSyncs();
+                            }
                         }
                     });
                 } else {
