@@ -622,24 +622,24 @@
 		"test": "node ./out/test/runTest.js"
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^12.1.1",
-		"@commitlint/config-conventional": "^12.1.1",
-		"@semantic-release/changelog": "^5.0.1",
-		"@semantic-release/git": "^9.0.0",
+		"@commitlint/cli": "^17.4.4",
+		"@commitlint/config-conventional": "^17.4.4",
+		"@semantic-release/changelog": "^6.0.2",
+		"@semantic-release/git": "^10.0.1",
 		"@types/glob": "^8.1.0",
 		"@types/mocha": "^8.2.2",
-		"@types/node": "^16.0.0",
+		"@types/node": "^16.11.7",
 		"@types/vscode": "1.46.0",
 		"@typescript-eslint/eslint-plugin": "^5.54.0",
 		"@typescript-eslint/parser": "^5.54.0",
 		"eslint": "^8.35.0",
 		"glob": "^8.1.0",
 		"husky": "^8.0.3",
-		"mocha": "^8.4.0",
-		"semantic-release": "^17.4.2",
-		"semantic-release-vsce": "^3.3.0",
+		"mocha": "^10.2.0",
+		"semantic-release": "^19.0.3",
+		"semantic-release-vsce": "^5.5.6",
 		"typescript": "^4.9.5",
-		"vscode-test": "^1.5.2"
+		"@vscode/test-electron": "^2.3.0"
 	},
 	"dependencies": {
 		"vscode-extension-telemetry": "^0.1.7"
