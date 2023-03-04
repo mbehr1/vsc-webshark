@@ -10,6 +10,8 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
 
 **Note:** It acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
 
+**Note:** Wireshark changed the jsonrpc for sharkd with version 3.5. This version requires a wireshark installation **>=v3.5**! If you need an older wireshark version you need to use v1.7.1 of this extension!
+
 **Note:** Currently I do find "sharkd" for Windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
 
 **Note:** Under Linux&reg; the default Debian package doesn't install "sharkd". 
@@ -42,7 +44,7 @@ The extension uses telemetry with two events (`open file`, errorcode as paramete
 
 ## Requirements
 
-**sharkd** (and tshark) binary from Wireshark needs to be locally installed. If installed via 'brew' on OSX its installed by default. For Win32/64 and Linux see notes above.
+**sharkd** (and tshark) binary from Wireshark >=v3.5 needs to be locally installed. If installed via 'brew' on OSX its installed by default. For Win32/64 and Linux see notes above.
 
 ## Extension Settings
 
@@ -74,6 +76,8 @@ This extension contributes the following settings:
 
 
 ## Known Issues
+
+* wireshark/sharkd fails with deprecated filters. See https://gitlab.com/wireshark/wireshark/-/issues/18886. Don't enter deprecated filter expression as this stops further processing for that file.
 
 Little testing done yet.
 Little documentation.
