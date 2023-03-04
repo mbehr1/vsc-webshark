@@ -10,11 +10,11 @@ This Visual Studio Code(tm) extension adds support to open pcap/network files. I
 
 **Note:** It acts mainly as a UI to a local [Wireshark&trade;](https://www.wireshark.org) installation. So Wireshark (incl **sharkd**) need to be locally installed.
 
-**Note:** Wireshark changed the jsonrpc for sharkd with version 3.5. This version requires a wireshark installation **>=v3.5**! If you need an older wireshark version you need to use v1.7.1 of this extension!
+>**Note:** Wireshark changed the jsonrpc for sharkd with version 3.5. This version requires a wireshark installation **>=v3.5**! If you need an older wireshark version you need to use v1.7.1 of this extension!
 
-**Note:** Currently I do find "sharkd" for Windows only as part of the Wireshark Win32 Portable packages [win32/WiresharkPortable_latest](https://wireshark.org/download/win32/WiresharkPortable_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
+>**Note:** Currently I do find "sharkd" for Windows only as part of the Wireshark Portable packages [win64/WiresharkPortable_latest](https://www.wireshark.org/download/win64/WiresharkPortable64_latest.paf.exe). Extracting the wireshark folder into any local folder and pointing the sharkdFullPath setting to it seems to work (so keeping the regular installation untouched).
 
-**Note:** Under Linux&reg; the default Debian package doesn't install "sharkd". 
+>**Note:** Under Linux&reg; the default Debian package doesn't install "sharkd". 
 With Ubuntu 20.04-LTS installing package "tshark" seems to be sufficient.
 
 If you install from source (git clone https://github.com/wireshark/wireshark; cd wireshark; mkdir build; cd build; cmake -DBUILD_wireshark=OFF .. ; make ; ./run/sharkd -   <- should build sharkd and print a 'Hello from client'. The path to this binary should be sufficient. Caution might be needed on the plugin directory location. You can keep the default option -DBUILD_wireshark=ON as well but its not needed. Check the list of compile dependencies (e.g. glib-2.0-dev libpcap-dev libgcrypt20-dev lib-c-ares-dev liblua5.3-dev lua5.3 )
