@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+### [2.0.1](https://github.com/mbehr1/vsc-webshark/compare/v2.0.0...v2.0.1) (2023-03-04)
+
+
+### Bug Fixes
+
+* add warning message for unepected stderr ([7f79048](https://github.com/mbehr1/vsc-webshark/commit/7f79048128bcdbc9bf5e159d9df42367e8602e87))
+
 ## [2.0.0](https://github.com/mbehr1/vsc-webshark/compare/v1.7.1...v2.0.0) (2023-03-04)
 
 
