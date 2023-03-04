@@ -156,7 +156,9 @@ export class TSharkProcess implements vscode.Disposable {
         if (this.running) {
             if (this._spawnedShell && !platformWin32) {
                 try {
-                    process.kill(-this._proc.pid, 'SIGINT'); // this is a bit more picky with not running processes
+                    if (this._proc.pid !== undefined) {
+                        process.kill(-this._proc.pid, 'SIGINT'); // this is a bit more picky with not running processes
+                    }
                 } catch (err) {
                     console.log(`TSharkProcess(${this.id}).dispose() process.kill got err=${err}`);
                 }
