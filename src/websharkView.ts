@@ -70,7 +70,12 @@ export class SharkdProcess implements vscode.Disposable {
                     this._readyPromises = [];
                 } // todo add timeout and promise(false)
             } else {
-                console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
+                if (!strData.startsWith('load:')) {
+                    console.warn(`SharkdProcess(${this.id}) unexpected stderr: '${strData}'`);
+                    vscode.window.showWarningMessage(`sharkd sent unexpected stderr: '${strData}'`);
+                } else {
+                    console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
+                }
             }
         });
         this._proc.stdout?.on("data", (data) => {
