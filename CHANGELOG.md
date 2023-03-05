@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [2.0.4](https://github.com/mbehr1/vsc-webshark/compare/v2.0.3...v2.0.4) (2023-03-05)
+
+
+### Bug Fixes
+
+* use status warning for yellow/deprecated ([31a2ca7](https://github.com/mbehr1/vsc-webshark/commit/31a2ca7bac24df1cc9bef21a8d7d07813ab1e238))
+
 ## [2.0.3](https://github.com/mbehr1/vsc-webshark/compare/v2.0.2...v2.0.3) (2023-03-05)
 
 
