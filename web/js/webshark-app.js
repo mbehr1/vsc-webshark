@@ -950,7 +950,7 @@
 							const txt = data.status;
 							if (txt == 'OK')
 								el.className = 'ws_gui_text_valid';
-							else if (txt == 'deprecated') // can't tell. crashes currently with https://gitlab.com/wireshark/wireshark/-/issues/18886
+							else if (txt == 'Warning') // could check warning text as well. should be status:"Warning", "warning":"Filter contains deprecated tokens". crashes currently (<=v4.0.4) with https://gitlab.com/wireshark/wireshark/-/issues/18886
 								el.className = 'ws_gui_text_deprecated';
 							else
 								el.className = 'ws_gui_text_invalid';
