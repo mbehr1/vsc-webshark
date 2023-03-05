@@ -155,15 +155,15 @@ async function extractDltMethod(uris: readonly vscode.Uri[], confMethod: MethodC
                     const [payLoadInByteModulus, payloadInByteSize] = confMethod?.options?.payloadInByte || [0, 1];
 
                     const processRawPayload = (lines: readonly string[]) => {
-                        //console.log(`onDidChangeData(lines.length=${lines.length}`);
+                        // console.log(`processRawPayload.onDidChangeData(lines.length=${lines.length}) payLoadInByteSize=${payloadInByteSize} payLoadInByteModulus=${payLoadInByteModulus}`);
                         for (let i = 0; i < lines.length; ++i) {
                             const line = lines[i].split('\t');
                             const [strSeconds, strMicros] = line[0].split('.');
                             const seconds = Number(strSeconds);
                             const micros = Number(strMicros.slice(0, 6).padEnd(6, '0'));
                             const bufPayload = Buffer.from(line[1], "hex");
-                            dltFileWriter.writeRaw(seconds, micros, payloadInByteSize > 1 ? Buffer.from(bufPayload.filter((v, i) => i % payloadInByteSize === payLoadInByteModulus)) : bufPayload);
-                            nrMsgs++;
+                            // console.log(` line ${i}: bufPayload.length=${bufPayload.length}`);
+                            nrMsgs += dltFileWriter.parseAndWriteRaw(seconds, micros, payloadInByteSize > 1 ? Buffer.from(bufPayload.filter((v, i) => i % payloadInByteSize === payLoadInByteModulus)) : bufPayload);
                         }
                     };
 
