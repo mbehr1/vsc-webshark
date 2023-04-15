@@ -77,7 +77,7 @@ This extension contributes the following settings:
 
 ## Known Issues
 
-* wireshark/sharkd fails with deprecated filters. See https://gitlab.com/wireshark/wireshark/-/issues/18886. Don't enter deprecated filter expression as this stops further processing for that file.
+* wireshark/sharkd versions before v4.0.5 fail with deprecated filters. See https://gitlab.com/wireshark/wireshark/-/issues/18886. Don't enter deprecated filter expression as this stops further processing for that file. Please update to >= v4.0.5.
 
 Little testing done yet.
 Little documentation.
