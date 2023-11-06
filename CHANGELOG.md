@@ -1,5 +1,14 @@
 # Change log for 'vsc-webshark':
 
+## [2.1.0](https://github.com/mbehr1/vsc-webshark/compare/v2.0.4...v2.1.0) (2023-11-06)
+
+
+### Features
+
+* **wireshark profiles:** allow to provide wireshark profiles via 'vsc-webshark.sharkdProfile' ([7769c2a](https://github.com/mbehr1/vsc-webshark/commit/7769c2a54ac02adbb23131cae106b709b49c276d))
+* **wireshark profiles:** allow to provide wireshark profiles via 'vsc-webshark.sharkdProfile' ([622bbcc](https://github.com/mbehr1/vsc-webshark/commit/622bbccad4a1dc6e7ec7dd28f14b7d295ba20087))
+* **wireshark profiles:** allow to provide wireshark profiles via 'vsc-webshark.sharkdProfile' ([392e5ae](https://github.com/mbehr1/vsc-webshark/commit/392e5aee771abc38438c4c8179a7d4dc829f9643))
+
 ## [2.0.4](https://github.com/mbehr1/vsc-webshark/compare/v2.0.3...v2.0.4) (2023-03-05)
 
 
