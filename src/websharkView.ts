@@ -36,10 +36,14 @@ export class SharkdProcess implements vscode.Disposable {
 
     private _notReadyErrData: string = '';
 
-    constructor(public sharkdPath: string) {
+    constructor(public sharkdPath: string, public wiresharkProfile?: string) {
         this.id = _nextSharkdId++;
         console.log(`spawning ${sharkdPath} from cwd=${process.cwd()} win32=${platformWin32}`);
-        this._proc = spawn(sharkdPath, ['-'], {
+        // either call sharkd the usual way: "sharkd -""
+        // or use "sharkd -C <profile>", if wiresharkProfile was provided
+        const spawnArgs = [...(wiresharkProfile ? ['-C', wiresharkProfile]: ['-'])]
+        console.debug(`spawnArgs ${spawnArgs}`);
+        this._proc = spawn(sharkdPath, spawnArgs, {
             // todo do we need to provide that? cwd: '/tmp/',
             stdio: ['pipe', 'pipe', 'pipe'],
             shell: true
@@ -217,6 +221,7 @@ export class WebsharkViewReadonlyEditorProvider implements vscode.CustomReadonly
     }
     resolveCustomEditor(document: WebsharkViewCustomDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): Thenable<void> | void {
         console.log(`WebsharkViewReadonlyEditorProvider resolveCustomEditor(document.uri=${document.uri.toString()}, webviewPanel:${webviewPanel}) called`);
+        const _wiresharkProfile = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.wiresharkProfile"));
         const _sharkdPath = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath"));
         if (!fileExists(_sharkdPath)) {
             vscode.window.showErrorMessage(`sharkdFullPath setting not pointing to a file. Please check setting. Currently used: '${_sharkdPath}'`,
@@ -229,7 +234,7 @@ export class WebsharkViewReadonlyEditorProvider implements vscode.CustomReadonly
                 });
             throw Error(`sharkdPath not pointing to a file`);
         } else {
-            const sharkd = new SharkdProcess(_sharkdPath);
+            const sharkd = new SharkdProcess(_sharkdPath, _wiresharkProfile);
             sharkd.ready().then((ready) => {
                 if (ready) {
                     this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this.treeViewProvider, this._onDidChangeSelectedTime, document.uri, sharkd, this.activeViews, this.callOnDispose));

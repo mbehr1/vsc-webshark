@@ -37,6 +37,7 @@
 			"supported": "limited",
 			"description": "Configuration settings for external tools should come from a trusted workspace only. Same for events where a calculation function can be specified.",
 			"restrictedConfigurations": [
+				"vsc-webshark.wiresharkProfile",
 				"vsc-webshark.sharkdFullPath",
 				"vsc-webshark.tsharkFullPath",
 				"vsc-webshark.mergecapFullPath",
@@ -132,6 +133,11 @@
 							"%p": 95,
 							"%L": 82
 						}
+					},
+					"vsc-webshark.wiresharkProfile": {
+						"type": "string",
+						"default": null,
+						"description": "Name of the (installed) wireshark profile to be used"
 					},
 					"vsc-webshark.sharkdFullPath": {
 						"type": "string",
