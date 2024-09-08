@@ -602,7 +602,13 @@
 			var ref_framenum = g_webshark.getRefFrame(framenum);
 			if (ref_framenum)
 				load_req['ref_frame'] = ref_framenum;
-			load_req['prev_frame'] = false; // framenum - 1;   /* TODO */
+				// the parameter 'prev_frame' changes with wireshark 4.1 from bool to uinteger
+				// https://gitlab.com/wireshark/wireshark/-/commit/39aa3cb58af77a91e05972a440d35fbb93d4273d
+				if (!g_ws_version_gte_4_1){
+					load_req['prev_frame'] = false;
+				}else{
+					// optional UINTEGER for now we don't have a prev_frame so we dont get relative info TODO
+				}			
 
 			webshark_json_get(load_req,
 				function (data) {
