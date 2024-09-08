@@ -1,715 +1,710 @@
 {
-	"name": "vsc-webshark",
-	"displayName": "vsc-webshark",
-	"description": "pcap / network trace / wireshark extension",
-	"version": "2.1.1",
-	"publisher": "mbehr1",
-	"license": "GPL-2.0",
-	"author": {
-		"name": "Matthias Behr",
-		"email": "mbehr+vscwebshark@mcbehr.de"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/mbehr1/vsc-webshark.git"
-	},
-	"bugs": {
-		"url": "https://github.com/mbehr1/vsc-webshark/issues"
-	},
-	"engines": {
-		"vscode": "^1.46.0"
-	},
-	"categories": [
-		"Other"
-	],
-	"activationEvents": [
-		"onCustomEditor:vsc-webshark.pcap",
-		"onWebviewPanel:vsc-webshark",
-		"onCommand:webshark.openFile",
-		"onCommand:webshark.filterPcap",
-		"onCommand:webshark.extractDlt",
-		"onCommand:webshark.removeTecmp"
-	],
-	"main": "./out/extension.js",
-	"capabilities": {
-		"virtualWorkspaces": false,
-		"untrustedWorkspaces": {
-			"supported": "limited",
-			"description": "Configuration settings for external tools should come from a trusted workspace only. Same for events where a calculation function can be specified.",
-			"restrictedConfigurations": [
-				"vsc-webshark.wiresharkProfile",
-				"vsc-webshark.sharkdFullPath",
-				"vsc-webshark.tsharkFullPath",
-				"vsc-webshark.mergecapFullPath",
-				"vsc-webshark.filterSteps",
-				"vsc-webshark.events",
-				"vsc-webshark.extractDltMethods",
-				"vsc-webshark.extractDltArgs",
-				"vsc-webshark.extractDltSteps",
-				"vsc-webshark.removeTecmpArgs",
-				"vsc-webshark.removeTecmpSteps"
-			]
-		}
-	},
-	"contributes": {
-		"customEditors": [
-			{
-				"viewType": "vsc-webshark.pcap",
-				"displayName": "pcap/pcapng/cap",
-				"selector": [
-					{
-						"filenamePattern": "*.pcap"
-					},
-					{
-						"filenamePattern": "*.pcapng"
-					},
-					{
-						"filenamePattern": "*.cap"
-					}
-				]
-			}
-		],
-		"commands": [
-			{
-				"command": "webshark.openFile",
-				"title": "Open pcap file..."
-			},
-			{
-				"command": "webshark.filterPcap",
-				"title": "Filter pcap file..."
-			},
-			{
-				"command": "webshark.extractDlt",
-				"title": "Extract DLT from pcap file..."
-			},
-			{
-				"command": "webshark.removeTecmp",
-				"title": "Remove TECMP from pcap file..."
-			}
-		],
-		"configuration": [
-			{
-				"title": "VSC-Webshark",
-				"properties": {
-					"vsc-webshark.columns": {
-						"type": "array",
-						"description": "List of columns shown in webview. Each item is an object with title as key and wireshark format as value.",
-						"items": {
-							"type": "object",
-							"title": "column config"
-						},
-						"default": [
-							{
-								"No.": "%m"
-							},
-							{
-								"Time": "%t"
-							},
-							{
-								"Source": "%s"
-							},
-							{
-								"Destination": "%d"
-							},
-							{
-								"Protocol": "%p"
-							},
-							{
-								"Length": "%L"
-							},
-							{
-								"Info": "%i"
-							}
-						]
-					},
-					"vsc-webshark.columnsWidths": {
-						"type": "object",
-						"description": "Object defining the columns width. Keys are the wireshark formats, value is the width in px.",
-						"default": {
-							"%m": 100,
-							"%t": 119,
-							"%s": 262,
-							"%d": 262,
-							"%p": 95,
-							"%L": 82
-						}
-					},
-					"vsc-webshark.wiresharkProfile": {
-						"type": "string",
-						"default": null,
-						"description": "Name of the (installed) wireshark profile to be used"
-					},
-					"vsc-webshark.sharkdFullPath": {
-						"type": "string",
-						"default": "sharkd",
-						"description": "Full path incl. file to the Wireshark - sharkd binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/sharkd"
-					},
-					"vsc-webshark.tsharkFullPath": {
-						"type": "string",
-						"default": "tshark",
-						"description": "Full path incl. file to the Wireshark - tshark binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/tshark or for win: c:\\program files\\Wireshark\\tshark.exe"
-					},
-					"vsc-webshark.mergecapFullPath": {
-						"type": "string",
-						"description": "Full path incl. file to the Wireshark - mergecap binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/mergecap or for win: c:\\program files\\Wireshark\\mergecap.exe"
-					},
-					"vsc-webshark.events": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"title": "event",
-							"properties": {
-								"displayFilter": {
-									"type": "string",
-									"description": "Wireshark display filter string used to identify this event."
-								},
-								"values": {
-									"type": "array",
-									"items": {
-										"type": "string",
-										"description": "Wireshark sharkd column expression like %Yut or <displayfilter>:<occurrence>. Values can be used for label or for timeSync feature."
-									}
-								},
-								"conversionFunction": {
-									"type": "string",
-									"description": "Optional parameter that need to be a proper JS function. It gets passed the 'values' array as argument and needs to return a string that is used as timeSync value. E.g. \"return values.join(':');\". If not provided values with be concated by ' '."
-								},
-								"label": {
-									"type": "string",
-									"description": "Label of this event. Can contain {x} format expressions that are replaced by x.th (1-based) values (see values). If empty (or {0}) defaults to the info column."
-								},
-								"level": {
-									"type": "integer",
-									"description": "Indent level (1-based) of this event. Level 1 events are the upmost ones. Level 0 wont be added to tree-view but can be used for timeSync.",
-									"default": 0
-								},
-								"timeSyncId": {
-									"type": "string",
-									"description": "Optional identifier of a 'time sync event'. This gets broadcasted to other documents with the time and the first value in lower case"
-								},
-								"timeSyncPrio": {
-									"type": "integer",
-									"description": "Optional (needed if timeSyncId is used) priority of the time-sync event. As two documents exchange their events by this prio they decide on who will adjust the time. The event with the highest prio (lowest number) will be used."
-								}
-							}
-						}
-					},
-					"vsc-webshark.filterSteps": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"title": "step configuration",
-							"properties": {
-								"title": {
-									"type": "string",
-									"description": "Descriptive title of the step"
-								},
-								"staticItems": {
-									"type": "array",
-									"description": "Optional items that are added to the quick pick for this step.",
-									"items": {
-										"type": "object",
-										"properties": {
-											"key": {
-												"type": "string",
-												"description": "Will be shown in first column and used as param to filterField."
-											},
-											"filterField": {
-												"type": "string",
-												"description": "tshark filter field that will be used with key."
-											},
-											"icon": {
-												"type": "string",
-												"description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
-											}
-										}
-									}
-								},
-								"listProvider": {
-									"type": "array",
-									"description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
-									"items": {
-										"type": "array",
-										"items": {
-											"type": "string"
-										}
-									}
-								},
-								"listProviderOptions": {
-									"type": "object",
-									"description": "Optional options for the list provider. Currently 'groupBy' is supported. See example.",
-									"properties": {
-										"groupBy": {
-											"type": "object",
-											"description": "Options to group items. E.g. frame time per min.",
-											"properties": {
-												"groupFn": {
-													"type": "string",
-													"description": "Javascript function body that has to return a string based on parameter 'col0'. E.g. 'return Math.trunc(Number(col0)/30).toString()'"
-												},
-												"justOneValue": {
-													"type": "boolean",
-													"description": "Determines whether just the first value creating the group should be kept or all values. Set to 'true' e.g. for frame time grouping."
-												}
-											}
-										}
-									}
-								},
-								"listIcon": {
-									"type": "string",
-									"description": "Optional codicon icon for the provided elements."
-								},
-								"filterField": {
-									"type": "string",
-									"description": "Tshark filter field that will be used with the first column results from the listProvider."
-								},
-								"filterOp": {
-									"type": "string",
-									"description": "Optional operator to be used to compare filterField. If not specified '==' is used."
-								},
-								"filterArgs": {
-									"type": "array",
-									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
-									"items": {
-										"type": "string"
-									}
-								},
-								"filterNegate": {
-									"type": "boolean",
-									"description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
-								}
-							}
-						},
-						"default": [
-							{
-								"title": "select all MAC addresses to keep",
-								"staticItems": [
-									{
-										"key": "224.0.0.0/4",
-										"ip.src": "multicast",
-										"icon": "$(globe)",
-										"filterField": "ip.addr"
-									}
-								],
-								"listProvider": [
-									[
-										"-n",
-										"-Q",
-										"-e eth.src",
-										"-e ip.src",
-										"-E header=y",
-										"-T fields",
-										"-Y !icmp"
-									]
-								],
-								"listDescription": [
-									"ip.src"
-								],
-								"listIcon": "$(device-mobile)",
-								"filterField": "eth.addr",
-								"filterArgs": [
-									"-n"
-								]
-							},
-							{
-								"title": "select UDP destination ports (udp.dstport) to remove",
-								"listProvider": [
-									[
-										"-n",
-										"-Q",
-										"-e udp.dstport",
-										"-e ip.src",
-										"-E header=y",
-										"-T fields",
-										"-Y udp"
-									]
-								],
-								"listDescription": [
-									"ip.src"
-								],
-								"listIcon": "$(rss)",
-								"filterField": "udp.dstport",
-								"filterArgs": [
-									"-n"
-								],
-								"filterNegate": true
-							},
-							{
-								"title": "select TCP destination ports (tcp.dstport) to remove",
-								"listProvider": [
-									[
-										"-n",
-										"-Q",
-										"-e tcp.dstport",
-										"-e ip.src",
-										"-E header=y",
-										"-T fields",
-										"-Y tcp"
-									]
-								],
-								"listDescription": [
-									"ip.src"
-								],
-								"listIcon": "$(plug)",
-								"filterField": "tcp.dstport",
-								"filterNegate": true
-							},
-							{
-								"title": "enter any additional (can be empty) display filter expression"
-							}
-						],
-						"description": "Steps offered for the 'Filter pcap file...' function"
-					},
-					"vsc-webshark.extractDltMethods": {
-						"type": "array",
-						"items": {
-							"type": "object"
-						},
-						"description": "Array with the different methods/ways for extracting DLT from pcap. If multiple are configured the user is asked which one should be executed.",
-						"default": [
-							{
-								"name": "UDP DLT",
-								"steps": "vsc-webshark.extractDltSteps",
-								"tSharkArgs": "vsc-webshark.extractDltArgs"
-							},
-							{
-								"name": "TECMP UART/RS232_RAW encapsulated DLS,STDHDR",
-								"options": {
-									"searchDls": true,
-									"payloadInByte": [
-										1,
-										2
-									]
-								},
-								"tSharkArgs": [
-									"-n",
-									"--enable-protocol tecmp",
-									"-d ethertype==8336,tecmp",
-									"-e frame.time_epoch -e tecmp.payload.data",
-									"-T fields",
-									"-Y tecmp.data_type==0x0011"
-								]
-							}
-						]
-					},
-					"vsc-webshark.extractDltArgs": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "Deprecated: Configure directly as extractDltMethods.tSharkArgs (see example). Arguments used for tshark. Should contain timestamp as epoch and hexdump of dlt message payload",
-						"default": [
-							"-n",
-							"--disable-protocol dlt",
-							"-e frame.time_epoch -e data",
-							"-T fields"
-						]
-					},
-					"vsc-webshark.extractDltSteps": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"title": "step configuration",
-							"properties": {
-								"title": {
-									"type": "string",
-									"description": "Descriptive title of the step"
-								},
-								"staticItems": {
-									"type": "array",
-									"description": "Optional items that are added to the quick pick for this step.",
-									"items": {
-										"type": "object",
-										"properties": {
-											"key": {
-												"type": "string",
-												"description": "Will be shown in first column and used as param to filterField."
-											},
-											"filterField": {
-												"type": "string",
-												"description": "tshark filter field that will be used with key."
-											},
-											"icon": {
-												"type": "string",
-												"description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
-											}
-										}
-									}
-								},
-								"listProvider": {
-									"type": "array",
-									"description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
-									"items": {
-										"type": "array",
-										"items": {
-											"type": "string"
-										}
-									}
-								},
-								"listIcon": {
-									"type": "string",
-									"description": "Optional codicon icon for the provided elements."
-								},
-								"filterField": {
-									"type": "string",
-									"description": "Tshark filter field that will be used with the first column results from the listProvider."
-								},
-								"filterArgs": {
-									"type": "array",
-									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
-									"items": {
-										"type": "string"
-									}
-								},
-								"filterNegate": {
-									"type": "boolean",
-									"description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
-								}
-							}
-						},
-						"default": [
-							{
-								"title": "enter udp.dstport with the DLT data to export",
-								"staticItems": [
-									{
-										"key": "3490",
-										"filterField": "udp.dstport"
-									}
-								],
-								"listProvider": [
-									[
-										"-n",
-										"-Q",
-										"-e udp.dstport",
-										"-E header=y",
-										"-T fields"
-									]
-								],
-								"filterField": "udp.dstport",
-								"filterArgs": [
-									"-n",
-									"--disable-protocol dlt"
-								]
-							},
-							{
-								"title": "select all MAC addresses with the DLT data to export",
-								"listProvider": [
-									[
-										"-n",
-										"-Q",
-										"-e eth.src",
-										"-e ip.src",
-										"-E header=y",
-										"-T fields"
-									]
-								],
-								"listDescription": [
-									"ip.src"
-								],
-								"listIcon": "$(device-mobile)",
-								"filterField": "eth.addr",
-								"filterArgs": [
-									"-n",
-									"--disable-protocol dlt"
-								]
-							}
-						],
-						"description": "Deprecated: Configure directly as extractDltMethods.steps (see example). Steps offered for the 'Extract DLT from pcap file...' function"
-					},
-					"vsc-webshark.removeTecmpArgs": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "Arguments used for tshark. Should contain timestamp as epoch and hexdump of encapsulated frame payload",
-						"default": [
-							"-n",
-							"--enable-protocol tecmp",
-							"--enable-protocol tecmp.payload",
-							"-d ethertype==8336,tecmpraw",
-							"-X lua_script:${{media/tecmpraw.lua}}",
-							"-e frame.time_epoch -e rawdata",
-							"-T fields"
-						]
-					},
-					"vsc-webshark.removeTecmpSteps": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"title": "step configuration",
-							"properties": {
-								"title": {
-									"type": "string",
-									"description": "Descriptive title of the step"
-								},
-								"staticItems": {
-									"type": "array",
-									"description": "Optional items that are added to the quick pick for this step.",
-									"items": {
-										"type": "object",
-										"properties": {
-											"key": {
-												"type": "string",
-												"description": "Will be shown in first column and used as param to filterField."
-											},
-											"filterField": {
-												"type": "string",
-												"description": "tshark filter field that will be used with key."
-											},
-											"icon": {
-												"type": "string",
-												"description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
-											}
-										}
-									}
-								},
-								"listProvider": {
-									"type": "array",
-									"description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
-									"items": {
-										"type": "array",
-										"items": {
-											"type": "string"
-										}
-									}
-								},
-								"listIcon": {
-									"type": "string",
-									"description": "Optional codicon icon for the provided elements."
-								},
-								"filterField": {
-									"type": "string",
-									"description": "Tshark filter field that will be used with the first column results from the listProvider."
-								},
-								"filterArgs": {
-									"type": "array",
-									"description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
-									"items": {
-										"type": "string"
-									}
-								},
-								"filterNegate": {
-									"type": "boolean",
-									"description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
-								}
-							}
-						},
-						"default": [],
-						"description": "Steps offered for the 'Remove TECMP from pcap file...' function"
-					}
-				}
-			}
-		],
-		"viewsContainers": {
-			"activitybar": [
-				{
-					"id": "mbehr1Logs",
-					"title": "Logs (smart-/dlt-/webshark-logs)",
-					"icon": "./media/logs.svg"
-				}
-			]
-		},
-		"views": {
-			"mbehr1Logs": [
-				{
-					"id": "websharkEventsExplorer",
-					"name": "webshark events explorer"
-				}
-			]
-		}
-	},
-	"scripts": {
-		"prepare": "husky install",
-		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./",
-		"lint": "eslint src --ext ts",
-		"watch": "tsc -watch -p ./",
-		"pretest": "npm run compile && npm run lint",
-		"test": "node ./out/test/runTest.js"
-	},
-	"devDependencies": {
-		"@commitlint/cli": "^17.4.4",
-		"@commitlint/config-conventional": "^17.4.4",
-		"@semantic-release/changelog": "^6.0.2",
-		"@semantic-release/git": "^10.0.1",
-		"@types/glob": "^8.1.0",
-		"@types/mocha": "^8.2.2",
-		"@types/node": "^16.11.7",
-		"@types/vscode": "1.46.0",
-		"@typescript-eslint/eslint-plugin": "^5.54.0",
-		"@typescript-eslint/parser": "^5.54.0",
-		"eslint": "^8.35.0",
-		"glob": "^8.1.0",
-		"husky": "^8.0.3",
-		"mocha": "^10.2.0",
-		"semantic-release": "^19.0.3",
-		"semantic-release-vsce": "^5.5.6",
-		"typescript": "^4.9.5",
-		"@vscode/test-electron": "^2.3.0"
-	},
-	"dependencies": {
-		"vscode-extension-telemetry": "^0.1.7"
-	},
-	"commitlint": {
-		"extends": [
-			"@commitlint/config-conventional"
-		]
-	},
-	"release": {
-		"branches": [
-			"master"
-		],
-		"plugins": [
-			[
-				"@semantic-release/commit-analyzer",
-				{
-					"releaseRules": [
-						{
-							"type": "docs",
-							"scope": "readme",
-							"release": "patch"
-						}
-					]
-				}
-			],
-			"@semantic-release/release-notes-generator",
-			[
-				"@semantic-release/changelog",
-				{
-					"changelogFile": "CHANGELOG.md",
-					"changelogTitle": "# Change log for 'vsc-webshark':"
-				}
-			],
-			[
-				"@semantic-release/npm",
-				{
-					"npmPublish": false
-				}
-			],
-			[
-				"semantic-release-vsce",
-				{
-					"packageVsix": "vsc-webshark.vsix"
-				}
-			],
-			[
-				"@semantic-release/github",
-				{
-					"assets": [
-						{
-							"path": "vsc-webshark.vsix",
-							"label": "vsc-webshark Visual Studio Code extension package"
-						}
-					]
-				}
-			],
-			[
-				"@semantic-release/git",
-				{
-					"message": "chore(release): ${nextRelease.version} [skip ci]"
-				}
-			]
-		],
-		"preset": "conventionalcommits"
-	}
+  "name": "vsc-webshark",
+  "displayName": "vsc-webshark",
+  "description": "pcap / network trace / wireshark extension",
+  "version": "2.1.1",
+  "publisher": "mbehr1",
+  "license": "GPL-2.0",
+  "author": {
+    "name": "Matthias Behr",
+    "email": "mbehr+vscwebshark@mcbehr.de"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mbehr1/vsc-webshark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mbehr1/vsc-webshark/issues"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onWebviewPanel:vsc-webshark"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Configuration settings for external tools should come from a trusted workspace only. Same for events where a calculation function can be specified.",
+      "restrictedConfigurations": [
+        "vsc-webshark.wiresharkProfile",
+        "vsc-webshark.sharkdFullPath",
+        "vsc-webshark.tsharkFullPath",
+        "vsc-webshark.mergecapFullPath",
+        "vsc-webshark.filterSteps",
+        "vsc-webshark.events",
+        "vsc-webshark.extractDltMethods",
+        "vsc-webshark.extractDltArgs",
+        "vsc-webshark.extractDltSteps",
+        "vsc-webshark.removeTecmpArgs",
+        "vsc-webshark.removeTecmpSteps"
+      ]
+    }
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "vsc-webshark.pcap",
+        "displayName": "pcap/pcapng/cap",
+        "selector": [
+          {
+            "filenamePattern": "*.pcap"
+          },
+          {
+            "filenamePattern": "*.pcapng"
+          },
+          {
+            "filenamePattern": "*.cap"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "webshark.openFile",
+        "title": "Open pcap file..."
+      },
+      {
+        "command": "webshark.filterPcap",
+        "title": "Filter pcap file..."
+      },
+      {
+        "command": "webshark.extractDlt",
+        "title": "Extract DLT from pcap file..."
+      },
+      {
+        "command": "webshark.removeTecmp",
+        "title": "Remove TECMP from pcap file..."
+      }
+    ],
+    "configuration": [
+      {
+        "title": "VSC-Webshark",
+        "properties": {
+          "vsc-webshark.columns": {
+            "type": "array",
+            "description": "List of columns shown in webview. Each item is an object with title as key and wireshark format as value.",
+            "items": {
+              "type": "object",
+              "title": "column config"
+            },
+            "default": [
+              {
+                "No.": "%m"
+              },
+              {
+                "Time": "%t"
+              },
+              {
+                "Source": "%s"
+              },
+              {
+                "Destination": "%d"
+              },
+              {
+                "Protocol": "%p"
+              },
+              {
+                "Length": "%L"
+              },
+              {
+                "Info": "%i"
+              }
+            ]
+          },
+          "vsc-webshark.columnsWidths": {
+            "type": "object",
+            "description": "Object defining the columns width. Keys are the wireshark formats, value is the width in px.",
+            "default": {
+              "%m": 100,
+              "%t": 119,
+              "%s": 262,
+              "%d": 262,
+              "%p": 95,
+              "%L": 82
+            }
+          },
+          "vsc-webshark.wiresharkProfile": {
+            "type": "string",
+            "default": null,
+            "description": "Name of the (installed) wireshark profile to be used"
+          },
+          "vsc-webshark.sharkdFullPath": {
+            "type": "string",
+            "default": "sharkd",
+            "description": "Full path incl. file to the Wireshark - sharkd binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/sharkd"
+          },
+          "vsc-webshark.tsharkFullPath": {
+            "type": "string",
+            "default": "tshark",
+            "description": "Full path incl. file to the Wireshark - tshark binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/tshark or for win: c:\\program files\\Wireshark\\tshark.exe"
+          },
+          "vsc-webshark.mergecapFullPath": {
+            "type": "string",
+            "description": "Full path incl. file to the Wireshark - mergecap binary. e.g. for OSX: /Applications/Wireshark.app/Contents/MacOS/mergecap or for win: c:\\program files\\Wireshark\\mergecap.exe"
+          },
+          "vsc-webshark.events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "title": "event",
+              "properties": {
+                "displayFilter": {
+                  "type": "string",
+                  "description": "Wireshark display filter string used to identify this event."
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "description": "Wireshark sharkd column expression like %Yut or <displayfilter>:<occurrence>. Values can be used for label or for timeSync feature."
+                  }
+                },
+                "conversionFunction": {
+                  "type": "string",
+                  "description": "Optional parameter that need to be a proper JS function. It gets passed the 'values' array as argument and needs to return a string that is used as timeSync value. E.g. \"return values.join(':');\". If not provided values with be concated by ' '."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Label of this event. Can contain {x} format expressions that are replaced by x.th (1-based) values (see values). If empty (or {0}) defaults to the info column."
+                },
+                "level": {
+                  "type": "integer",
+                  "description": "Indent level (1-based) of this event. Level 1 events are the upmost ones. Level 0 wont be added to tree-view but can be used for timeSync.",
+                  "default": 0
+                },
+                "timeSyncId": {
+                  "type": "string",
+                  "description": "Optional identifier of a 'time sync event'. This gets broadcasted to other documents with the time and the first value in lower case"
+                },
+                "timeSyncPrio": {
+                  "type": "integer",
+                  "description": "Optional (needed if timeSyncId is used) priority of the time-sync event. As two documents exchange their events by this prio they decide on who will adjust the time. The event with the highest prio (lowest number) will be used."
+                }
+              }
+            }
+          },
+          "vsc-webshark.filterSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "title": "step configuration",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Descriptive title of the step"
+                },
+                "staticItems": {
+                  "type": "array",
+                  "description": "Optional items that are added to the quick pick for this step.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "description": "Will be shown in first column and used as param to filterField."
+                      },
+                      "filterField": {
+                        "type": "string",
+                        "description": "tshark filter field that will be used with key."
+                      },
+                      "icon": {
+                        "type": "string",
+                        "description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
+                      }
+                    }
+                  }
+                },
+                "listProvider": {
+                  "type": "array",
+                  "description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "listProviderOptions": {
+                  "type": "object",
+                  "description": "Optional options for the list provider. Currently 'groupBy' is supported. See example.",
+                  "properties": {
+                    "groupBy": {
+                      "type": "object",
+                      "description": "Options to group items. E.g. frame time per min.",
+                      "properties": {
+                        "groupFn": {
+                          "type": "string",
+                          "description": "Javascript function body that has to return a string based on parameter 'col0'. E.g. 'return Math.trunc(Number(col0)/30).toString()'"
+                        },
+                        "justOneValue": {
+                          "type": "boolean",
+                          "description": "Determines whether just the first value creating the group should be kept or all values. Set to 'true' e.g. for frame time grouping."
+                        }
+                      }
+                    }
+                  }
+                },
+                "listIcon": {
+                  "type": "string",
+                  "description": "Optional codicon icon for the provided elements."
+                },
+                "filterField": {
+                  "type": "string",
+                  "description": "Tshark filter field that will be used with the first column results from the listProvider."
+                },
+                "filterOp": {
+                  "type": "string",
+                  "description": "Optional operator to be used to compare filterField. If not specified '==' is used."
+                },
+                "filterArgs": {
+                  "type": "array",
+                  "description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "filterNegate": {
+                  "type": "boolean",
+                  "description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
+                }
+              }
+            },
+            "default": [
+              {
+                "title": "select all MAC addresses to keep",
+                "staticItems": [
+                  {
+                    "key": "224.0.0.0/4",
+                    "ip.src": "multicast",
+                    "icon": "$(globe)",
+                    "filterField": "ip.addr"
+                  }
+                ],
+                "listProvider": [
+                  [
+                    "-n",
+                    "-Q",
+                    "-e eth.src",
+                    "-e ip.src",
+                    "-E header=y",
+                    "-T fields",
+                    "-Y !icmp"
+                  ]
+                ],
+                "listDescription": [
+                  "ip.src"
+                ],
+                "listIcon": "$(device-mobile)",
+                "filterField": "eth.addr",
+                "filterArgs": [
+                  "-n"
+                ]
+              },
+              {
+                "title": "select UDP destination ports (udp.dstport) to remove",
+                "listProvider": [
+                  [
+                    "-n",
+                    "-Q",
+                    "-e udp.dstport",
+                    "-e ip.src",
+                    "-E header=y",
+                    "-T fields",
+                    "-Y udp"
+                  ]
+                ],
+                "listDescription": [
+                  "ip.src"
+                ],
+                "listIcon": "$(rss)",
+                "filterField": "udp.dstport",
+                "filterArgs": [
+                  "-n"
+                ],
+                "filterNegate": true
+              },
+              {
+                "title": "select TCP destination ports (tcp.dstport) to remove",
+                "listProvider": [
+                  [
+                    "-n",
+                    "-Q",
+                    "-e tcp.dstport",
+                    "-e ip.src",
+                    "-E header=y",
+                    "-T fields",
+                    "-Y tcp"
+                  ]
+                ],
+                "listDescription": [
+                  "ip.src"
+                ],
+                "listIcon": "$(plug)",
+                "filterField": "tcp.dstport",
+                "filterNegate": true
+              },
+              {
+                "title": "enter any additional (can be empty) display filter expression"
+              }
+            ],
+            "description": "Steps offered for the 'Filter pcap file...' function"
+          },
+          "vsc-webshark.extractDltMethods": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Array with the different methods/ways for extracting DLT from pcap. If multiple are configured the user is asked which one should be executed.",
+            "default": [
+              {
+                "name": "UDP DLT",
+                "steps": "vsc-webshark.extractDltSteps",
+                "tSharkArgs": "vsc-webshark.extractDltArgs"
+              },
+              {
+                "name": "TECMP UART/RS232_RAW encapsulated DLS,STDHDR",
+                "options": {
+                  "searchDls": true,
+                  "payloadInByte": [
+                    1,
+                    2
+                  ]
+                },
+                "tSharkArgs": [
+                  "-n",
+                  "--enable-protocol tecmp",
+                  "-d ethertype==8336,tecmp",
+                  "-e frame.time_epoch -e tecmp.payload.data",
+                  "-T fields",
+                  "-Y tecmp.data_type==0x0011"
+                ]
+              }
+            ]
+          },
+          "vsc-webshark.extractDltArgs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Deprecated: Configure directly as extractDltMethods.tSharkArgs (see example). Arguments used for tshark. Should contain timestamp as epoch and hexdump of dlt message payload",
+            "default": [
+              "-n",
+              "--disable-protocol dlt",
+              "-e frame.time_epoch -e data",
+              "-T fields"
+            ]
+          },
+          "vsc-webshark.extractDltSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "title": "step configuration",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Descriptive title of the step"
+                },
+                "staticItems": {
+                  "type": "array",
+                  "description": "Optional items that are added to the quick pick for this step.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "description": "Will be shown in first column and used as param to filterField."
+                      },
+                      "filterField": {
+                        "type": "string",
+                        "description": "tshark filter field that will be used with key."
+                      },
+                      "icon": {
+                        "type": "string",
+                        "description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
+                      }
+                    }
+                  }
+                },
+                "listProvider": {
+                  "type": "array",
+                  "description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "listIcon": {
+                  "type": "string",
+                  "description": "Optional codicon icon for the provided elements."
+                },
+                "filterField": {
+                  "type": "string",
+                  "description": "Tshark filter field that will be used with the first column results from the listProvider."
+                },
+                "filterArgs": {
+                  "type": "array",
+                  "description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "filterNegate": {
+                  "type": "boolean",
+                  "description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
+                }
+              }
+            },
+            "default": [
+              {
+                "title": "enter udp.dstport with the DLT data to export",
+                "staticItems": [
+                  {
+                    "key": "3490",
+                    "filterField": "udp.dstport"
+                  }
+                ],
+                "listProvider": [
+                  [
+                    "-n",
+                    "-Q",
+                    "-e udp.dstport",
+                    "-E header=y",
+                    "-T fields"
+                  ]
+                ],
+                "filterField": "udp.dstport",
+                "filterArgs": [
+                  "-n",
+                  "--disable-protocol dlt"
+                ]
+              },
+              {
+                "title": "select all MAC addresses with the DLT data to export",
+                "listProvider": [
+                  [
+                    "-n",
+                    "-Q",
+                    "-e eth.src",
+                    "-e ip.src",
+                    "-E header=y",
+                    "-T fields"
+                  ]
+                ],
+                "listDescription": [
+                  "ip.src"
+                ],
+                "listIcon": "$(device-mobile)",
+                "filterField": "eth.addr",
+                "filterArgs": [
+                  "-n",
+                  "--disable-protocol dlt"
+                ]
+              }
+            ],
+            "description": "Deprecated: Configure directly as extractDltMethods.steps (see example). Steps offered for the 'Extract DLT from pcap file...' function"
+          },
+          "vsc-webshark.removeTecmpArgs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments used for tshark. Should contain timestamp as epoch and hexdump of encapsulated frame payload",
+            "default": [
+              "-n",
+              "--enable-protocol tecmp",
+              "--enable-protocol tecmp.payload",
+              "-d ethertype==8336,tecmpraw",
+              "-X lua_script:${{media/tecmpraw.lua}}",
+              "-e frame.time_epoch -e rawdata",
+              "-T fields"
+            ]
+          },
+          "vsc-webshark.removeTecmpSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "title": "step configuration",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Descriptive title of the step"
+                },
+                "staticItems": {
+                  "type": "array",
+                  "description": "Optional items that are added to the quick pick for this step.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "description": "Will be shown in first column and used as param to filterField."
+                      },
+                      "filterField": {
+                        "type": "string",
+                        "description": "tshark filter field that will be used with key."
+                      },
+                      "icon": {
+                        "type": "string",
+                        "description": "Optional codicon icon that will be added for this item. E.g. $(globe)"
+                      }
+                    }
+                  }
+                },
+                "listProvider": {
+                  "type": "array",
+                  "description": "Optional tshark based list provider arguments that executes the filter in the background and provides quick pick items. It's an array of array as multiple queries can be piped (thark ... | thark ... ). This is usefull if e.g. on the first one a wireshark config (-C ...) is used that has most plugins disabled and is a lot faster.",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "listIcon": {
+                  "type": "string",
+                  "description": "Optional codicon icon for the provided elements."
+                },
+                "filterField": {
+                  "type": "string",
+                  "description": "Tshark filter field that will be used with the first column results from the listProvider."
+                },
+                "filterArgs": {
+                  "type": "array",
+                  "description": "Optional tshark arguments that will be provided on filter execution. Usefull e.g. to provide a minimal/fast wireshark config.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "filterNegate": {
+                  "type": "boolean",
+                  "description": "Can be used to 'remove' items. If used the filter is created with !(filterField==key or filterField==key...). If not set the default is filterField==key or ..."
+                }
+              }
+            },
+            "default": [],
+            "description": "Steps offered for the 'Remove TECMP from pcap file...' function"
+          }
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mbehr1Logs",
+          "title": "Logs (smart-/dlt-/webshark-logs)",
+          "icon": "./media/logs.svg"
+        }
+      ]
+    },
+    "views": {
+      "mbehr1Logs": [
+        {
+          "id": "websharkEventsExplorer",
+          "name": "webshark events explorer"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "prepare": "husky install",
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "lint": "eslint src",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.4.4",
+    "@commitlint/config-conventional": "^17.4.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^8.2.2",
+    "@types/node": "^20.14.8",
+    "@types/vscode": "1.75.0",
+    "@typescript-eslint/eslint-plugin": "^8.4.0",
+    "@typescript-eslint/parser": "^8.4.0",
+    "eslint": "^9.10.0",
+    "glob": "^8.1.0",
+    "husky": "^8.0.3",
+    "mocha": "^10.2.0",
+    "semantic-release": "^24.1.0",
+    "semantic-release-vsce": "^5.7.4",
+    "typescript": "^5.5.4",
+    "@vscode/test-electron": "^2.3.0"
+  },
+  "dependencies": {
+    "@vscode/extension-telemetry": "^0.9.7"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "release": {
+    "branches": [
+      "master"
+    ],
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "type": "docs",
+              "scope": "readme",
+              "release": "patch"
+            }
+          ]
+        }
+      ],
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md",
+          "changelogTitle": "# Change log for 'vsc-webshark':"
+        }
+      ],
+      [
+        "@semantic-release/npm",
+        {
+          "npmPublish": false
+        }
+      ],
+      [
+        "semantic-release-vsce",
+        {
+          "packageVsix": "vsc-webshark.vsix"
+        }
+      ],
+      [
+        "@semantic-release/github",
+        {
+          "assets": [
+            {
+              "path": "vsc-webshark.vsix",
+              "label": "vsc-webshark Visual Studio Code extension package"
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "message": "chore(release): ${nextRelease.version} [skip ci]"
+        }
+      ]
+    ],
+    "preset": "conventionalcommits"
+  }
 }
