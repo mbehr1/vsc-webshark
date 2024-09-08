@@ -6,171 +6,186 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { TreeViewProvider, TreeViewNode } from './treeViewProvider';
 let _nextSharkdId = 1;
 
-const platformWin32: boolean = process.platform === "win32";
-const platformNewline: string = platformWin32 ? "\r\n" : "\n"; // what a mess... sharkd on win (or cmd) translates newlines into \r\n
-const platformDoubleNewLine = platformWin32 ? "\r\n" : "\n"; // only needed to parse output, input is accepted with single newline
+const platformWin32: boolean = process.platform === 'win32';
+const platformNewline: string = platformWin32 ? '\r\n' : '\n'; // what a mess... sharkd on win (or cmd) translates newlines into \r\n
+const platformDoubleNewLine = platformWin32 ? '\r\n' : '\n'; // only needed to parse output, input is accepted with single newline
 const platformDoubleNewLineLen = platformDoubleNewLine.length;
 
 export function fileExists(filePath: string) {
-    try {
-        return fs.statSync(filePath).isFile();
-    } catch (err) {
-        return false;
-    }
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (err) {
+    return false;
+  }
 }
 
 export class SharkdProcess implements vscode.Disposable {
-    public id: number;
-    private _proc: ChildProcess;
-    public running: boolean = false;
-    private _ready: boolean = false; // after "Hello in child"
-    private _readyPromises: ((value: boolean) => void)[] = [];
-    private _partialResponse: Buffer | null = null;
-    private _dataTimeout: NodeJS.Timeout | null = null;
+  public id: number;
+  private _proc: ChildProcess;
+  public running: boolean = false;
+  private _ready: boolean = false; // after "Hello in child"
+  private _readyPromises: ((value: boolean) => void)[] = [];
+  private _partialResponse: Buffer | null = null;
+  private _dataTimeout: NodeJS.Timeout | null = null;
 
-    public _onDataFunction: null | ((objs: any[]) => void) = null;
+  public _onDataFunction: null | ((objs: any[]) => void) = null;
 
-    private _notReadyErrData: string = '';
+  private _notReadyErrData: string = '';
 
-    constructor(public sharkdPath: string, public wiresharkProfile?: string) {
-        this.id = _nextSharkdId++;
-        console.log(`spawning ${sharkdPath} from cwd=${process.cwd()} win32=${platformWin32}`);
-        // either call sharkd the usual way: "sharkd -""
-        // or use "sharkd -C <profile>", if wiresharkProfile was provided
-        const spawnArgs = [...(wiresharkProfile ? ['-C', wiresharkProfile]: ['-'])]
-        console.debug(`spawnArgs ${spawnArgs}`);
-        this._proc = spawn(sharkdPath, spawnArgs, {
-            // todo do we need to provide that? cwd: '/tmp/',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            shell: true
-        });
-        this.running = true;
-        this._proc.on('error', (err) => {
-            console.warn(`SharkdProcess(${this.id}) got error: ${err}`);
-            this.running = false;
-            this._ready = false;
-            this._readyPromises.forEach((p) => p(false));
-            this._readyPromises = [];
-        });
-        this._proc.on('close', (code) => {
-            console.log(`SharkdProcess(${this.id}) closed with: ${code}`);
-            this.running = false;
-            this._ready = false;
-            this._readyPromises.forEach((p) => p(false));
-            this._readyPromises = [];
-        });
-        this._proc.stderr?.on('data', (data) => {
-            const strData: string = data.toString();
-            if (!this._ready) {
-                this._notReadyErrData = this._notReadyErrData.concat(strData);
-                this._ready = this._notReadyErrData.indexOf(`Hello in child.${platformNewline}`) >= 0;
-                if (this._ready) {
-                    console.log(`SharkdProcess(${this.id}) ready: '${this._ready}', data='${this._notReadyErrData}'`);
-                    this._readyPromises.forEach((p) => p(this._ready));
-                    this._readyPromises = [];
-                } // todo add timeout and promise(false)
-            } else {
-                if (!strData.startsWith('load:')) {
-                    console.warn(`SharkdProcess(${this.id}) unexpected stderr: '${strData}'`);
-                    vscode.window.showWarningMessage(`sharkd sent unexpected stderr: '${strData}'`);
-                } else {
-                    console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
-                }
-            }
-        });
-        this._proc.stdout?.on("data", (data) => {
-            //console.log(`SharkdProcess(${this.id}) got data len=${data.length} '${data.slice(0, 70).toString()}'`);
-
-            if (this._partialResponse) {
-                this._partialResponse = Buffer.concat([this._partialResponse, data]);
-            } else {
-                this._partialResponse = data;
-            }
-
-            let jsonObjs: any[] = [];
-
-            let gotObj: boolean;
-            do {
-                gotObj = false;
-                if (this._partialResponse) {
-                    const crPos = this._partialResponse.indexOf(platformDoubleNewLine, undefined, "utf8"); // sharkd format is "0+ lines of json reply, finished by empty new line (only prev 3.5 wireshark)"
-                    if (crPos === 0) {
-                        console.warn(`SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${this._partialResponse.length} resp=${this._partialResponse.toString()}`);
-                        if (this._partialResponse.length > 1) {
-                            // remove the leading \n
-                            this._partialResponse = this._partialResponse?.slice(crPos + platformDoubleNewLineLen);
-                            gotObj = true; // and parse the rest.
-                        } else {
-                            this._partialResponse = null;
-                        }
-                    } else {
-                        try {
-                            let jsonObj = JSON.parse(this._partialResponse.slice(0, crPos > 0 ? crPos : undefined).toString());
-                            jsonObjs.push(jsonObj);
-                            if (crPos > 0 && crPos < this._partialResponse.length - platformDoubleNewLineLen) {
-                                console.log(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
-                                this._partialResponse = this._partialResponse?.slice(crPos + platformDoubleNewLineLen);
-                                gotObj = true;
-                            } else {
-                                this._partialResponse = null;
-                                gotObj = false;
-                            }
-                        } catch (err) {
-                            // we can't parse, so keep the buffer.
-                            console.warn(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse!.length} got err=${err} partialResponse=${this._partialResponse?.toString()}`);
-                        }
-                    }
-                }
-            } while (gotObj);
-
-            if (jsonObjs.length > 0) {
-                if (this._dataTimeout) {
-                    clearTimeout(this._dataTimeout);
-                    this._dataTimeout = null;
-                }
-                if (this._onDataFunction) { this._onDataFunction(jsonObjs); }
-                jsonObjs = [];
-            } else {
-                //console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
-                // console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
-                if (this._dataTimeout) {
-                    clearTimeout(this._dataTimeout);
-                    this._dataTimeout = null;
-                }
-                this._dataTimeout = setTimeout(() => {
-                    if (this._onDataFunction) { this._onDataFunction([{ error: { code: 3, message: 'timeout' } }]); }
-                }, 60000);
-            }
-        });
-    }
-
-    dispose() {
-        this._proc.kill(); // send SIGTERM
-    }
-
-    ready(): Promise<boolean> {
-        return new Promise<boolean>(resolve => {
-            if (this._ready && this.running) { resolve(true); return; }
-            if (!this.running) { resolve(false); return; }
-            this._readyPromises.push(resolve);
-        });
-    }
-
-    sendRequest(req: string) {
-        if (!this._proc.stdin) {
-            console.error(`SharkdProcess.sendRequest called but proc.stdin null!`);
+  constructor(public sharkdPath: string, public wiresharkProfile?: string) {
+    this.id = _nextSharkdId++;
+    console.log(`spawning ${sharkdPath} from cwd=${process.cwd()} win32=${platformWin32}`);
+    // either call sharkd the usual way: "sharkd -""
+    // or use "sharkd -C <profile>", if wiresharkProfile was provided
+    const spawnArgs = [...(wiresharkProfile ? ['-C', wiresharkProfile] : ['-'])];
+    console.debug(`spawnArgs ${spawnArgs}`);
+    this._proc = spawn(sharkdPath, spawnArgs, {
+      // todo do we need to provide that? cwd: '/tmp/',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
+    });
+    this.running = true;
+    this._proc.on('error', (err) => {
+      console.warn(`SharkdProcess(${this.id}) got error: ${err}`);
+      this.running = false;
+      this._ready = false;
+      this._readyPromises.forEach((p) => p(false));
+      this._readyPromises = [];
+    });
+    this._proc.on('close', (code) => {
+      console.log(`SharkdProcess(${this.id}) closed with: ${code}`);
+      this.running = false;
+      this._ready = false;
+      this._readyPromises.forEach((p) => p(false));
+      this._readyPromises = [];
+    });
+    this._proc.stderr?.on('data', (data) => {
+      const strData: string = data.toString();
+      if (!this._ready) {
+        this._notReadyErrData = this._notReadyErrData.concat(strData);
+        this._ready = this._notReadyErrData.indexOf(`Hello in child.${platformNewline}`) >= 0;
+        if (this._ready) {
+          console.log(`SharkdProcess(${this.id}) ready: '${this._ready}', data='${this._notReadyErrData}'`);
+          this._readyPromises.forEach((p) => p(this._ready));
+          this._readyPromises = [];
+        } // todo add timeout and promise(false)
+      } else {
+        if (!strData.startsWith('load:')) {
+          console.warn(`SharkdProcess(${this.id}) unexpected stderr: '${strData}'`);
+          vscode.window.showWarningMessage(`sharkd sent unexpected stderr: '${strData}'`);
         } else {
-            this._proc.stdin.write(`${req}\n`);
+          console.log(`SharkdProcess(${this.id}) stderr: '${strData}'`);
         }
-    }
-    sendRequestObj(req: object) {
-        this.sendRequest(JSON.stringify(req));
-    }
+      }
+    });
+    this._proc.stdout?.on('data', (data) => {
+      //console.log(`SharkdProcess(${this.id}) got data len=${data.length} '${data.slice(0, 70).toString()}'`);
 
+      if (this._partialResponse) {
+        this._partialResponse = Buffer.concat([this._partialResponse, data]);
+      } else {
+        this._partialResponse = data;
+      }
+
+      let jsonObjs: any[] = [];
+
+      let gotObj: boolean;
+      do {
+        gotObj = false;
+        if (this._partialResponse) {
+          const crPos = this._partialResponse.indexOf(platformDoubleNewLine, undefined, 'utf8'); // sharkd format is "0+ lines of json reply, finished by empty new line (only prev 3.5 wireshark)"
+          if (crPos === 0) {
+            console.warn(
+              `SharkdProcess(${this.id}) crPos = 0! partialResponse.length=${
+                this._partialResponse.length
+              } resp=${this._partialResponse.toString()}`
+            );
+            if (this._partialResponse.length > 1) {
+              // remove the leading \n
+              this._partialResponse = this._partialResponse?.subarray(crPos + platformDoubleNewLineLen);
+              gotObj = true; // and parse the rest.
+            } else {
+              this._partialResponse = null;
+            }
+          } else {
+            try {
+              let jsonObj = JSON.parse(this._partialResponse.subarray(0, crPos > 0 ? crPos : undefined).toString());
+              jsonObjs.push(jsonObj);
+              if (crPos > 0 && crPos < this._partialResponse.length - platformDoubleNewLineLen) {
+                console.log(`SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse.length}`);
+                this._partialResponse = this._partialResponse?.subarray(crPos + platformDoubleNewLineLen);
+                gotObj = true;
+              } else {
+                this._partialResponse = null;
+                gotObj = false;
+              }
+            } catch (err) {
+              // we can't parse, so keep the buffer.
+              console.log(
+                `SharkdProcess(${this.id}) crPos = ${crPos} partialResponse.length=${this._partialResponse!.length} got err=${err}` // partialResponse=${this._partialResponse?.toString()}`
+              );
+            }
+          }
+        }
+      } while (gotObj);
+
+      if (jsonObjs.length > 0) {
+        if (this._dataTimeout) {
+          clearTimeout(this._dataTimeout);
+          this._dataTimeout = null;
+        }
+        if (this._onDataFunction) {
+          this._onDataFunction(jsonObjs);
+        }
+        jsonObjs = [];
+      } else {
+        //console.log(`WebsharkView sharkdCon waiting for more data (got: ${this._partialResponse?.length})`);
+        // console.log(` ${this._partialResponse?.toString().slice(0, 1000)}`);
+        if (this._dataTimeout) {
+          clearTimeout(this._dataTimeout);
+          this._dataTimeout = null;
+        }
+        this._dataTimeout = setTimeout(() => {
+          if (this._onDataFunction) {
+            this._onDataFunction([{ error: { code: 3, message: 'timeout' } }]);
+          }
+        }, 60000);
+      }
+    });
+  }
+
+  dispose() {
+    this._proc.kill(); // send SIGTERM
+  }
+
+  ready(): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      if (this._ready && this.running) {
+        resolve(true);
+        return;
+      }
+      if (!this.running) {
+        resolve(false);
+        return;
+      }
+      this._readyPromises.push(resolve);
+    });
+  }
+
+  sendRequest(req: string) {
+    if (!this._proc.stdin) {
+      console.error(`SharkdProcess.sendRequest called but proc.stdin null!`);
+    } else {
+      this._proc.stdin.write(`${req}\n`);
+    }
+  }
+  sendRequestObj(req: object) {
+    this.sendRequest(JSON.stringify(req));
+  }
 }
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
