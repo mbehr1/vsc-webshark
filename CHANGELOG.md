@@ -1,5 +1,12 @@
 # Change log for 'vsc-webshark':
 
+## [2.1.1](https://github.com/mbehr1/vsc-webshark/compare/v2.1.0...v2.1.1) (2024-09-08)
+
+
+### Bug Fixes
+
+* add support for wireshark >= v4.1 ([cbf934d](https://github.com/mbehr1/vsc-webshark/commit/cbf934d923913730ab1b7773ca773c613e7711b8)), closes [#29](https://github.com/mbehr1/vsc-webshark/issues/29)
+
 ## [2.1.0](https://github.com/mbehr1/vsc-webshark/compare/v2.0.4...v2.1.0) (2023-11-06)
 
 
