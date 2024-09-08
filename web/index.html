@@ -61,6 +61,8 @@
 		var g_ws_allColumns = null;
 
 		var g_ws_pref = {};
+		var g_ws_version = null;
+		var g_ws_version_gte_4_1 = true;
 
 		var g_ws_default_pref =
 		{
@@ -575,8 +577,10 @@
 						g_ws_rtd = data['rtd'];
 						g_ws_convs = data['convs'];
 						g_ws_ftypes = data['ftypes'];
-
-						document.title = document.title.replace("${WEBSHARK_VER}", data['version']);
+						g_ws_version = data['version'];
+						g_ws_version_gte_4_1 = compare_ws_version(g_ws_version, '4.1')>=0;
+						console.log(`g_ws_version='${g_ws_version}'' g_ws_version_gte_4_1=${g_ws_version_gte_4_1}`);
+						document.title = document.title.replace("${WEBSHARK_VER}", g_ws_version);
 						console.log('load document.title=' + document.title);
 						setup_user_toolbar(data['user']);
 						console.log('load data[user]=' + JSON.stringify(data['user']));
