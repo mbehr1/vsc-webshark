@@ -38,15 +38,16 @@ export class SharkdProcess implements vscode.Disposable {
 
   constructor(public sharkdPath: string, public wiresharkProfile?: string) {
     this.id = _nextSharkdId++;
-    console.log(`spawning ${sharkdPath} from cwd=${process.cwd()} win32=${platformWin32}`);
+    const { base: sharkdCmd, dir: sharkdDirParsed } = path.parse(sharkdPath);
+    const sharkdDir = sharkdDirParsed.length > 0 ? sharkdDirParsed : process.cwd();
     // either call sharkd the usual way: "sharkd -""
     // or use "sharkd -C <profile>", if wiresharkProfile was provided
     const spawnArgs = [...(wiresharkProfile ? ['-C', wiresharkProfile] : ['-'])];
-    console.debug(`spawnArgs ${spawnArgs}`);
-    this._proc = spawn(sharkdPath, spawnArgs, {
-      // todo do we need to provide that? cwd: '/tmp/',
+    console.log(`SharkdProcess spawning '${sharkdCmd}' args:${JSON.stringify(spawnArgs)} from cwd='${sharkdDir}' win32=${platformWin32}`);
+    this._proc = spawn(sharkdCmd, spawnArgs, {
+      cwd: sharkdDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
+      shell: true, // we want to be able to call e.g. .bat/.cmd files
     });
     this.running = true;
     this._proc.on('error', (err) => {
