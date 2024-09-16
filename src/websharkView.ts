@@ -524,19 +524,31 @@ export class WebsharkView implements vscode.Disposable {
 
                                 // load the first frame to get the abs time reference:
                                 this.sharkd2Request({ req: 'frames', limit: 1, column0: this._utcTimeColumnIdx }, (res: any) => {
-                                    if ('error' in res) {
+                                    try {
+                                      if ('error' in res) {
                                         console.warn(`WebsharkView sharkd2 'frames' got error=${JSON.stringify(res)}`);
-                                    } else {
-                                        const result = res.result;
-                                        console.log(`WebsharkView sharkd2 'frames' got frame #${result[0].num} res=${JSON.stringify(result).slice(0, 200)}`);
-                                        this._firstFrame = result;
-                                        this._firstFrameTime = new Date(result[0].c[0]);
-                                        console.log(`WebsharkView firstFrameTime (non adjusted)=${this._firstFrameTime.toUTCString()}`);
+                                      } else {
+                                        if (res && res.result && Array.isArray(res.result) && res.result.length > 0) {
+                                          const result = res.result;
+                                          console.log(
+                                            `WebsharkView sharkd2 'frames' got frame #${result[0].num} res=${JSON.stringify(result).slice(
+                                              0,
+                                              200
+                                            )}`
+                                          );
+                                          this._firstFrame = result;
+                                          this._firstFrameTime = new Date(result[0].c[0]);
+                                          console.log(`WebsharkView firstFrameTime (non adjusted)=${this._firstFrameTime.toUTCString()}`);
 
-                                        this._firstInfosLoaded = true;
-                                        this.updateTimeIndices(this._activeFilter);
-
-                                        this.scanForEvents();
+                                          this._firstInfosLoaded = true;
+                                          this.updateTimeIndices(this._activeFilter);
+                                          this.scanForEvents();
+                                        } else {
+                                          console.error(`WebsharkView sharkd2 'frames' got invalid result. res=${JSON.stringify(res)}`);
+                                        }
+                                      }
+                                    } catch (err) {
+                                      console.error(`WebsharkView sharkd2 'frames' catched err=${err}`);
                                     }
                                 });
                             }
