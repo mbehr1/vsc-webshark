@@ -2,7 +2,7 @@
   "name": "vsc-webshark",
   "displayName": "vsc-webshark",
   "description": "pcap / network trace / wireshark extension",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "publisher": "mbehr1",
   "license": "GPL-2.0",
   "author": {
