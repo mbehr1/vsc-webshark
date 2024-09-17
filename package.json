@@ -53,13 +53,13 @@
         "displayName": "pcap/pcapng/cap",
         "selector": [
           {
-            "filenamePattern": "*.pcap"
+            "filenamePattern": "{*.pcap,*.pcap.gz,*.pcap.zst,*.pcap.lz4}"
           },
           {
-            "filenamePattern": "*.pcapng"
+            "filenamePattern": "{*.pcapng,*.pcapng.gz,*.pcapng.zst,*.pcapng.lz4}"
           },
           {
-            "filenamePattern": "*.cap"
+            "filenamePattern": "{*.cap,*.cap.gz,*.cap.zst,*.cap.lz4}"
           }
         ]
       }

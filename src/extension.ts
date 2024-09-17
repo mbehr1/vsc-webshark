@@ -102,7 +102,9 @@ export function activate(context: vscode.ExtensionContext) {
             canSelectFiles: true,
             canSelectFolders: false,
             canSelectMany: false,
-            filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] },
+            filters: {
+              'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']),
+            },
             openLabel: 'Select pcap file to open...',
           })
           .then(async (uris: vscode.Uri[] | undefined) => {
@@ -145,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
           canSelectFiles: true,
           canSelectFolders: false,
           canSelectMany: true,
-          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] },
+          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']) },
           openLabel: 'Select pcap file to filter...',
         })
         .then(async (uris: vscode.Uri[] | undefined) => {
@@ -167,7 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
           canSelectFiles: true,
           canSelectFolders: false,
           canSelectMany: true,
-          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] },
+          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']) },
           openLabel: 'Select pcap file to extract DLT from...',
         })
         .then(async (uris: vscode.Uri[] | undefined) => {
@@ -189,7 +191,7 @@ export function activate(context: vscode.ExtensionContext) {
           canSelectFiles: true,
           canSelectFolders: false,
           canSelectMany: true,
-          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'] },
+          filters: { 'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']) },
           openLabel: 'Select pcap file to remove TECMP headers from...',
         })
         .then(async (uris: vscode.Uri[] | undefined) => {
