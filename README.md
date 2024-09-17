@@ -22,6 +22,7 @@ If you install from source (git clone https://github.com/wireshark/wireshark; cd
 ## Features
 
 - Open 'pcap'/'pcapng' network capture files. Use command "Open pcap file..." or with vscode >=1.46 directly open cap/pcap/pcapng files.
+- Compressed pcap/pcapng files are supported as well with extensions cap|pcap|pcapng.gz|zst|lz4
 - Display filter with known syntax from wireshark
 - **Time sync** feature.
   - Calculates time for each frame based on timestamp and broadcasts the time to the other **Time sync** extensions so that they reveal the fitting time ranges.
