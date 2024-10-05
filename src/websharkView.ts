@@ -8,6 +8,7 @@ import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { TreeViewProvider, TreeViewNode } from './treeViewProvider';
+import { fileExistsOrPick } from './utils';
 let _nextSharkdId = 1;
 
 const platformWin32: boolean = process.platform === 'win32';
@@ -190,78 +191,126 @@ export class SharkdProcess implements vscode.Disposable {
 }
 
 export class WebsharkViewSerializer implements vscode.WebviewPanelSerializer {
-    constructor(private reporter: TelemetryReporter, private treeViewProvider: TreeViewProvider, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private sharkdPath: string, private context: vscode.ExtensionContext, private activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
+  constructor(
+    private reporter: TelemetryReporter,
+    private treeViewProvider: TreeViewProvider,
+    private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>,
+    private sharkdPath: string,
+    private context: vscode.ExtensionContext,
+    private activeViews: WebsharkView[],
+    private callOnDispose: (r: WebsharkView) => any
+  ) {}
+  async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
+    console.log(`WebsharkView deserializeWebviewPanel called. state='${JSON.stringify(state)}'`);
+    try {
+      if ('uri' in state) {
+        const uri: vscode.Uri = vscode.Uri.parse(state.uri, true);
+        console.log(`creating WebsharkView for uri=${uri.toString()}`);
 
+        const sharkd = new SharkdProcess(this.sharkdPath);
+        sharkd.ready().then((ready) => {
+          if (ready) {
+            this.context.subscriptions.push(
+              new WebsharkView(
+                webviewPanel,
+                this.context,
+                this.treeViewProvider,
+                this._onDidChangeSelectedTime,
+                uri,
+                sharkd,
+                this.activeViews,
+                this.callOnDispose
+              )
+            );
+            if (this.reporter) {
+              this.reporter.sendTelemetryEvent('open file', undefined, { err: 0 });
+            }
+          } else {
+            vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
+            if (this.reporter) {
+              this.reporter.sendTelemetryEvent('open file', undefined, { err: -1 });
+            }
+          }
+        });
+      } else {
+        console.warn(`deserializeWebviewPanel but no uri within state='${JSON.stringify(state)}'`);
+      }
+    } catch (err) {
+      console.warn(`deserializeWebviewPanel got err=${err} with state='${JSON.stringify(state)}'`);
     }
-    async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
-        console.log(`WebsharkView deserializeWebviewPanel called. state='${JSON.stringify(state)}'`);
-        try {
-            if ('uri' in state) {
-                const uri: vscode.Uri = vscode.Uri.parse(state.uri, true);
-                console.log(`creating WebsharkView for uri=${uri.toString()}`);
-
-                const sharkd = new SharkdProcess(this.sharkdPath);
-                sharkd.ready().then((ready) => {
-                    if (ready) {
-                        this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this.treeViewProvider, this._onDidChangeSelectedTime, uri, sharkd, this.activeViews, this.callOnDispose));
-                        if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': 0 }); }
-                    } else {
-                        vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${this.sharkdPath}'`);
-                        if (this.reporter) { this.reporter.sendTelemetryEvent("open file", undefined, { 'err': -1 }); }
-                    }
-                });
-
-            } else { console.warn(`deserializeWebviewPanel but no uri within state='${JSON.stringify(state)}'`); }
-        } catch (err) {
-            console.warn(`deserializeWebviewPanel got err=${err} with state='${JSON.stringify(state)}'`);
-        }
-    }
+  }
 }
 
 class WebsharkViewCustomDocument implements vscode.CustomDocument {
-    constructor(public uri: vscode.Uri) {
-        console.log(`WebsharkViewCustomDocument(uri=${this.uri.toString()}) called`);
-    }
-    dispose() {
-        console.log(`WebsharkViewCustomDocument dispose(uri=${this.uri.toString()}) called`);
-    }
+  constructor(public uri: vscode.Uri) {
+    console.log(`WebsharkViewCustomDocument(uri=${this.uri.toString()}) called`);
+  }
+  dispose() {
+    console.log(`WebsharkViewCustomDocument dispose(uri=${this.uri.toString()}) called`);
+  }
 }
 
 export class WebsharkViewReadonlyEditorProvider implements vscode.CustomReadonlyEditorProvider<WebsharkViewCustomDocument> {
-    constructor(private reporter: TelemetryReporter, private treeViewProvider: TreeViewProvider, private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>, private context: vscode.ExtensionContext, private activeViews: WebsharkView[], private callOnDispose: (r: WebsharkView) => any) {
-    }
-    openCustomDocument(uri: vscode.Uri, openContext: vscode.CustomDocumentOpenContext, token: vscode.CancellationToken): Thenable<WebsharkViewCustomDocument> | WebsharkViewCustomDocument {
-        console.log(`WebsharkViewReadonlyEditorProvider openCustomDocument(uri=${uri.toString()}, openContext=${JSON.stringify(openContext)}) called`);
-        // we dont support backupId yet (necessary for readonly at all?)
-        return new WebsharkViewCustomDocument(uri);
-    }
-    resolveCustomEditor(document: WebsharkViewCustomDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): Thenable<void> | void {
-        console.log(`WebsharkViewReadonlyEditorProvider resolveCustomEditor(document.uri=${document.uri.toString()}, webviewPanel:${webviewPanel}) called`);
-        const _wiresharkProfile = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.wiresharkProfile"));
-        const _sharkdPath = <string>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdFullPath"));
-        if (!fileExists(_sharkdPath)) {
-            vscode.window.showErrorMessage(`sharkdFullPath setting not pointing to a file. Please check setting. Currently used: '${_sharkdPath}'`,
-                { modal: true }, 'open settings').then((value) => {
-                    switch (value) {
-                        case 'open settings':
-                            vscode.commands.executeCommand('workbench.action.openSettings', "vsc-webshark.sharkdFullPath");
-                            break;
-                    }
-                });
-            throw Error(`sharkdPath not pointing to a file`);
-        } else {
-            const sharkd = new SharkdProcess(_sharkdPath, _wiresharkProfile);
-            sharkd.ready().then((ready) => {
-                if (ready) {
-                    this.context.subscriptions.push(new WebsharkView(webviewPanel, this.context, this.treeViewProvider, this._onDidChangeSelectedTime, document.uri, sharkd, this.activeViews, this.callOnDispose));
-                    if (this.reporter) { this.reporter.sendTelemetryEvent("open file resolve custom editor", { fn: 'resolveCustomEditor' }, { 'err': 0 }); }
-                } else {
-                    vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
-                    if (this.reporter) { this.reporter.sendTelemetryEvent("open file resolve custom editor", { fn: 'resolveCustomEditor' }, { 'err': -1 }); }
-                }
-            });
-        }
-    }
+  constructor(
+    private reporter: TelemetryReporter,
+    private treeViewProvider: TreeViewProvider,
+    private _onDidChangeSelectedTime: vscode.EventEmitter<SelectedTimeData>,
+    private context: vscode.ExtensionContext,
+    private activeViews: WebsharkView[],
+    private callOnDispose: (r: WebsharkView) => any
+  ) {}
+  openCustomDocument(
+    uri: vscode.Uri,
+    openContext: vscode.CustomDocumentOpenContext,
+    token: vscode.CancellationToken
+  ): Thenable<WebsharkViewCustomDocument> | WebsharkViewCustomDocument {
+    console.log(
+      `WebsharkViewReadonlyEditorProvider openCustomDocument(uri=${uri.toString()}, openContext=${JSON.stringify(openContext)}) called`
+    );
+    // we dont support backupId yet (necessary for readonly at all?)
+    return new WebsharkViewCustomDocument(uri);
+  }
+  resolveCustomEditor(
+    document: WebsharkViewCustomDocument,
+    webviewPanel: vscode.WebviewPanel,
+    token: vscode.CancellationToken
+  ): Thenable<void> | void {
+    console.log(
+      `WebsharkViewReadonlyEditorProvider resolveCustomEditor(document.uri=${document.uri.toString()}, webviewPanel:${webviewPanel}) called`
+    );
+    const _wiresharkProfile = <string>vscode.workspace.getConfiguration().get('vsc-webshark.wiresharkProfile');
+    fileExistsOrPick('vsc-webshark.sharkdFullPath', 'sharkd')
+      .then((filePath) => {
+        const sharkd = new SharkdProcess(filePath, _wiresharkProfile);
+        sharkd.ready().then((ready) => {
+          if (ready) {
+            this.context.subscriptions.push(
+              new WebsharkView(
+                webviewPanel,
+                this.context,
+                this.treeViewProvider,
+                this._onDidChangeSelectedTime,
+                document.uri,
+                sharkd,
+                this.activeViews,
+                this.callOnDispose
+              )
+            );
+            if (this.reporter) {
+              this.reporter.sendTelemetryEvent('open file resolve custom editor', { fn: 'resolveCustomEditor' }, { err: 0 });
+            }
+          } else {
+            vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${filePath}'`);
+            if (this.reporter) {
+              this.reporter.sendTelemetryEvent('open file resolve custom editor', { fn: 'resolveCustomEditor' }, { err: -1 });
+            }
+          }
+        });
+      })
+      .catch((err) => {
+        throw Error(`sharkdPath not valid: ${err}`);
+      });
+  }
 }
 
 interface ResponseData {

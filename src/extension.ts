@@ -14,6 +14,7 @@ import {
 } from './websharkView';
 import { TreeViewNode, TreeViewProvider } from './treeViewProvider';
 import { filterPcap, extractDlt, removeTecmp } from './filterPcap';
+import { fileExistsOrPick } from './utils';
 
 const extensionId = 'mbehr1.vsc-webshark';
 let reporter: TelemetryReporter;
@@ -80,63 +81,51 @@ export function activate(context: vscode.ExtensionContext) {
   // register our command to open pcap files in webshark view:
   context.subscriptions.push(
     vscode.commands.registerCommand('webshark.openFile', async () => {
-      let _sharkdPath = <string>vscode.workspace.getConfiguration().get('vsc-webshark.sharkdFullPath');
-      // check if _sharkdPath exists
-      if (!fileExists(_sharkdPath)) {
-        vscode.window
-          .showErrorMessage(
-            `sharkdFullPath setting not pointing to a file. Please check setting. Currently used: '${_sharkdPath}'`,
-            { modal: true },
-            'open settings'
-          )
-          .then((value) => {
-            switch (value) {
-              case 'open settings':
-                vscode.commands.executeCommand('workbench.action.openSettings', 'vsc-webshark.sharkdFullPath');
-                break;
-            }
-          });
-      } else {
-        return vscode.window
-          .showOpenDialog({
-            canSelectFiles: true,
-            canSelectFolders: false,
-            canSelectMany: false,
-            filters: {
-              'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']),
-            },
-            openLabel: 'Select pcap file to open...',
-          })
-          .then(async (uris: vscode.Uri[] | undefined) => {
-            if (uris) {
-              uris.forEach((uri) => {
-                console.log(`webshark.openFile got URI=${uri.toString()}`);
-                const sharkd = new SharkdProcess(_sharkdPath);
-                sharkd.ready().then((ready) => {
-                  if (ready) {
-                    context.subscriptions.push(
-                      new WebsharkView(undefined, context, treeDataProvider, _onDidChangeSelectedTime, uri, sharkd, activeViews, (r) => {
-                        const idx = activeViews.indexOf(r);
-                        console.log(` openFile dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
-                        if (idx >= 0) {
-                          activeViews.splice(idx, 1);
-                        }
-                      })
-                    );
-                    if (reporter) {
-                      reporter.sendTelemetryEvent('open file', undefined, { err: 0 });
+      fileExistsOrPick('vsc-webshark.sharkdFullPath', 'sharkd')
+        .then((_sharkdPath) => {
+          return vscode.window
+            .showOpenDialog({
+              canSelectFiles: true,
+              canSelectFolders: false,
+              canSelectMany: false,
+              filters: {
+                'pcap files': ['pcap', 'cap', 'pcapng'].flatMap((ext) => [ext, ext + '.gz', ext + '.zst', ext + '.lz4']),
+              },
+              openLabel: 'Select pcap file to open...',
+            })
+            .then(async (uris: vscode.Uri[] | undefined) => {
+              if (uris) {
+                uris.forEach((uri) => {
+                  console.log(`webshark.openFile got URI=${uri.toString()}`);
+                  const sharkd = new SharkdProcess(_sharkdPath);
+                  sharkd.ready().then((ready) => {
+                    if (ready) {
+                      context.subscriptions.push(
+                        new WebsharkView(undefined, context, treeDataProvider, _onDidChangeSelectedTime, uri, sharkd, activeViews, (r) => {
+                          const idx = activeViews.indexOf(r);
+                          console.log(` openFile dispose called( r idx = ${idx}) activeViews=${activeViews.length}`);
+                          if (idx >= 0) {
+                            activeViews.splice(idx, 1);
+                          }
+                        })
+                      );
+                      if (reporter) {
+                        reporter.sendTelemetryEvent('open file', undefined, { err: 0 });
+                      }
+                    } else {
+                      vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
+                      if (reporter) {
+                        reporter.sendTelemetryEvent('open file', undefined, { err: -1 });
+                      }
                     }
-                  } else {
-                    vscode.window.showErrorMessage(`sharkd connection not ready! Please check setting. Currently used: '${_sharkdPath}'`);
-                    if (reporter) {
-                      reporter.sendTelemetryEvent('open file', undefined, { err: -1 });
-                    }
-                  }
+                  });
                 });
-              });
-            }
-          });
-      }
+              }
+            });
+        })
+        .catch((err) => {
+          throw Error(`sharkdPath not valid: ${err}`);
+        });
     })
   );
 
