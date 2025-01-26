@@ -3904,23 +3904,24 @@
 
 						svg.append("svg:path")
 							.attr("d", fa_paths[what])
-							.style("fill", "#191970");
+							.style("fill", "currentColor");
 						break;
 					}
 			}
 
-			var str = 'data:image/svg+xml;base64,' + window.btoa(svg.node().outerHTML);
-			m_glyph_cache[what] = str;
-			return str;
+			m_glyph_cache[what] = svg;
+      return svg;
 		}
 
 		function webshark_glyph_img(what, width) {
-			var img = document.createElement('img');
-
-			img.setAttribute('src', webshark_glyph(what));
-			img.setAttribute('width', width);
-			return img;
-		}
+			var img = webshark_glyph(what).node().cloneNode(true);
+      img.classList.add('ws_glyph_img');
+			img.setAttribute('role', 'img');
+			img.setAttribute('aria-labelledby',what);
+      img.setAttribute('width', width);
+			img.setAttribute('height', width);
+      return img;
+    }
 
 		exports.webshark_glyph_img = webshark_glyph_img;
 

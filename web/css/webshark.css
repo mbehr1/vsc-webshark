@@ -109,6 +109,9 @@ table.ws_border
 .ws_cell_expert_color_Warning { background-color: #f7f253; }
 .ws_cell_expert_color_Error   { background-color: #ff5c5c; }
 
+.ws_glyph_img {
+	color: var(--vscode-editor-foreground);
+}
 ul.menul
 {
 	list-style-type: none;
