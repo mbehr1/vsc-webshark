@@ -591,6 +591,24 @@
             },
             "default": [],
             "description": "Steps offered for the 'Remove TECMP from pcap file...' function"
+          },
+          "vsc-webshark.sharkdConfigurations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "title": "sharkd configurations",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "config name, check https://wiki.wireshark.org/sharkd-JSON-RPC-Request-Syntax#setconf for more infomation"
+                },
+                "value": {
+                  "description": "config value"
+                }
+              }
+            },
+            "default": [],
+            "description": "Load sharkd config by setconf when open webshharkview."
           }
         }
       }

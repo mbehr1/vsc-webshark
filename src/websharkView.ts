@@ -540,6 +540,20 @@ export class WebsharkView implements vscode.Disposable {
                 }
             }
         };
+
+        // load config for sharkd
+
+        const sharkdConf = <any[]>(vscode.workspace.getConfiguration().get("vsc-webshark.sharkdConfigurations"));
+        for (const conf of sharkdConf) {
+          this.sharkd2Request({ req: 'setconf', params: { name: conf.name, value: conf.value } }, (res: any) => {
+            console.log(`WebsharkView sharkd2 'setconf ${conf.name}=${conf.value}' got res=${JSON.stringify(res)}`);
+            if ('error' in res) {
+                console.error(`WebsharkView sharkd2 'setconf' got error=${res.error}`);
+                // if not err: 0 we could e.g. kill and don't offer time services...
+            }
+          });
+        }
+
         // load the file here as well: todo might delay until the first one has fully loaded the file
         // but with all our multi-core cpus it should run fine in parallel... todo
         // as long as sharkd2 is not ready it's not granted that requests are done in fifo order.

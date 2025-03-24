@@ -75,7 +75,10 @@ This extension contributes the following settings:
   * `name`: a name to identify
   * `steps`: similar to filterSteps but for the "extract DLT from pcap file..." function.
   * `tSharkArgs`: arguments used for tshark to extract the DLT message payload from the pcap file.
-
+* `vsc-webshark.sharkdConfigurations`: An array of configurations for sharkd. For more details, refer to [setconf](https://wiki.wireshark.org/sharkd-JSON-RPC-Request-Syntax#setconf).
+  Each configuration item includes:
+  * `name`: The name of the property.
+  * `value`: The corresponding value for the configuration.
 
 ## Known Issues
 
